@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 require 'time'
 require 'json'
 require 'openai'
@@ -21,7 +23,7 @@ module PokerCalendar
         fetch_daily_page(date_str, daily_file)
       end
       
-      html_content = File.read(daily_file)
+      html_content = File.read(daily_file, encoding: 'utf-8')
       extract_tournament_links(html_content)
     end
 
@@ -64,7 +66,7 @@ module PokerCalendar
         return
       end
 
-      info_html = File.read(make_info_file_path(link))
+      info_html = File.read(make_info_file_path(link), encoding: 'utf-8')
       
       begin
         sleep(0.7)
