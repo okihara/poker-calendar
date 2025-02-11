@@ -8,7 +8,7 @@ module PokerCalendar
     end
 
     def parse_tournaments(tournament_links, output_file)
-      CSV.open(output_file, "w") do |csv|
+      CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
         write_header(csv)
         process_tournaments(csv, tournament_links)
       end
@@ -45,7 +45,7 @@ module PokerCalendar
       res_file_name = File.join(@data_dir, make_res_filename(link))
       return unless File.exist?(res_file_name)
 
-      tournament_data = JSON.parse(File.read(res_file_name))
+      tournament_data = JSON.parse(File.read(res_file_name, encoding: 'UTF-8'))
       unless valid_tournament?(tournament_data)
         puts "Invalid tournament data for #{link}"
         return

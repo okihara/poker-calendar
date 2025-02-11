@@ -9,14 +9,25 @@ module PokerCalendar
 
     def upload_csv(csv_file, spreadsheet_key)
       puts "Uploading CSV file to Google Spreadsheet...#{csv_file}"
-      spreadsheet = @session.spreadsheet_by_key(spreadsheet_key)
-      worksheet = spreadsheet.worksheets.first
+      begin
+        spreadsheet = @session.spreadsheet_by_key(spreadsheet_key)
+        worksheet = spreadsheet.worksheets.first
 
-      clear_worksheet(worksheet)
-      upload_data(worksheet, csv_file)
-      
-      worksheet.save
-      puts "CSV file uploaded to Google Spreadsheet successfully."
+        clear_worksheet(worksheet)
+        upload_data(worksheet, csv_file)
+        
+        worksheet.save
+        puts "CSV file uploaded to Google Spreadsheet successfully."
+      rescue Google::Apis::AuthorizationError => e
+        puts "認証エラーが発生しました: #{e.message}"
+        raise
+      rescue Google::Apis::ServerError, Google::Apis::ClientError => e
+        puts "Google APIエラーが発生しました: #{e.message}"
+        raise
+      rescue StandardError => e
+        puts "予期せぬエラーが発生しました: #{e.message}"
+        raise
+      end
     end
 
     private
