@@ -1,8 +1,11 @@
 require 'json'
 require 'csv'
+require_relative './loggable'
 
 module PokerCalendar
   class TournamentParser
+    include Loggable
+
     def initialize(data_dir)
       @data_dir = data_dir
     end
@@ -47,7 +50,7 @@ module PokerCalendar
 
       tournament_data = JSON.parse(File.read(res_file_name, encoding: 'UTF-8'))
       unless valid_tournament?(tournament_data)
-        puts "Invalid tournament data for #{link}"
+        log "Invalid tournament data for #{link}"
         return
       end
 
@@ -59,7 +62,7 @@ module PokerCalendar
     end
 
     def write_tournament_data(csv, data, index, link)
-      # puts "#{index + 1} #{data["shop_name"]} #{data["title"]} #{link}"
+      # log "#{index + 1} #{data["shop_name"]} #{data["title"]} #{link}"
 
       csv << [
         index + 1,

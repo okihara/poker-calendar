@@ -3,9 +3,12 @@
 require 'time'
 require 'json'
 require 'openai'
+require_relative './loggable'
 
 module PokerCalendar
   class TournamentScraper
+    include Loggable
+
     BASE_URL = 'https://pokerguild.jp'
     
     def initialize(openai_client, data_dir)
@@ -18,7 +21,7 @@ module PokerCalendar
       daily_file = File.join(@data_dir, "pg-#{date_str}.html")
       
       if File.exist?(daily_file)
-        puts "SKIP: Daily tournament list already exists for #{date_str}"
+        log "SKIP: Daily tournament list already exists for #{date_str}"
       else
         fetch_daily_page(date_str, daily_file)
       end
@@ -28,7 +31,9 @@ module PokerCalendar
     end
 
     def process_tournaments(tournament_links)
-      tournament_links.each do |link|
+      log "Processing #{tournament_links.size} tournaments"
+      tournament_links.each_with_index do |link, index|
+        log "Processing tournament #{index + 1}/#{tournament_links.size}: #{link}"
         fetch_tournament_info(link)
         process_tournament_info(link)
       end
@@ -37,7 +42,7 @@ module PokerCalendar
     private
 
     def fetch_daily_page(date_str, file_path)
-      puts "Fetching daily tournament list for #{date_str}"
+      log "Fetching daily tournament list for #{date_str}"
       `curl -X GET "#{BASE_URL}/?date=#{date_str}" > #{file_path}`
     end
 
@@ -50,7 +55,7 @@ module PokerCalendar
     def fetch_tournament_info(tourney_link)
       file_path = make_info_file_path(tourney_link)
       if File.exist?(file_path)
-        puts "SKIP: Tournament info already exists for #{tourney_link}"
+        log "SKIP: Tournament info already exists for #{tourney_link}"
         return
       end
 
@@ -62,7 +67,7 @@ module PokerCalendar
     def process_tournament_info(link)
       res_file_path = make_response_file_path(link)
       if File.exist?(res_file_path)
-        puts "SKIP: Tournament analysis already exists for #{link}"
+        log "SKIP: Tournament analysis already exists for #{link}"
         return
       end
 
@@ -70,11 +75,11 @@ module PokerCalendar
       
       begin
         sleep(0.7)
-        puts "Processing tournament info for #{link}"
+        log "Processing tournament info for #{link}"
         response = post_to_openai(info_html)
         File.write(res_file_path, response)
       rescue => e
-        puts "Error processing tournament: #{e.message}"
+        log "Error processing tournament: #{e.message}"
       end
     end
 
