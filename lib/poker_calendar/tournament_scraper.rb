@@ -43,7 +43,7 @@ module PokerCalendar
 
     def fetch_daily_page(date_str, file_path)
       log "Fetching daily tournament list for #{date_str}"
-      `curl -X GET "#{BASE_URL}/?date=#{date_str}" > #{file_path}`
+      `curl -L --compressed -X GET "#{BASE_URL}/?date=#{date_str}" > #{file_path}`
     end
 
     def extract_tournament_links(html_content)
@@ -61,7 +61,7 @@ module PokerCalendar
 
       sleep(1)
       url = "#{BASE_URL}#{tourney_link}"
-      `curl -X GET "#{url}" > #{file_path}`
+      `curl -L --compressed -X GET "#{url}" > #{file_path}`
     end
 
     def process_tournament_info(link)
@@ -77,7 +77,7 @@ module PokerCalendar
         sleep(0.7)
         log "Processing tournament info for #{link}"
         response = post_to_openai(info_html)
-        File.write(res_file_path, response)
+        File.write(res_file_path, response, encoding: 'UTF-8')
       rescue => e
         log "Error processing tournament: #{e.message}"
       end
