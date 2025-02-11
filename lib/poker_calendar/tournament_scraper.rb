@@ -113,7 +113,7 @@ module PokerCalendar
       - date
       - start_time
       - late_registration_time
-      - entry_fee(integer)
+      - entry_fee:参加費(integer)
       - reentry_fee(integer)
       - add_on(integer)
       - prize_list(list<integer>)
