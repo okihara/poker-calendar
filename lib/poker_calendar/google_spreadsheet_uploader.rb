@@ -44,7 +44,7 @@ module PokerCalendar
     end
 
     def upload_data(worksheet, csv_file)
-      csv_data = CSV.read(csv_file)
+      csv_data = CSV.read(csv_file, encoding: 'UTF-8')
       log "Total rows to upload: #{csv_data.count}"
 
       csv_data.each_with_index do |row, row_index|
