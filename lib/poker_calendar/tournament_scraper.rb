@@ -11,20 +11,17 @@ module PokerCalendar
 
     BASE_URL = 'https://pokerguild.jp'
     
-    def initialize(openai_client, data_dir)
+    def initialize(openai_client, data_dir, date)
       @client = openai_client
       @data_dir = data_dir
+      @date = date
+      @date_str = date.strftime("%Y-%m-%d")
     end
 
-    def fetch_daily_tournaments(date)
-      date_str = date.strftime("%Y-%m-%d")
-      daily_file = File.join(@data_dir, "pg-#{date_str}.html")
+    def fetch_daily_tournaments
+      daily_file = File.join(@data_dir, "pg-#{@date_str}.html")
       
-      if File.exist?(daily_file)
-        log "SKIP: Daily tournament list already exists for #{date_str}"
-      else
-        fetch_daily_page(date_str, daily_file)
-      end
+      fetch_daily_page(daily_file)
       
       html_content = File.read(daily_file, encoding: 'utf-8')
       extract_tournament_links(html_content)
@@ -39,11 +36,15 @@ module PokerCalendar
       end
     end
 
+    def make_response_file_path(tourney_link)
+      filename = "res-#{make_info_file_name(tourney_link)}.json"
+      File.join(@data_dir, filename)
+    end
     private
 
-    def fetch_daily_page(date_str, file_path)
-      log "Fetching daily tournament list for #{date_str}"
-      `curl -L --compressed -X GET "#{BASE_URL}/?date=#{date_str}" > #{file_path}`
+    def fetch_daily_page(file_path)
+      log "Fetching daily tournament list for #{@date_str}"
+      `curl -L --compressed -X GET "#{BASE_URL}/?date=#{@date_str}" > #{file_path}`
     end
 
     def extract_tournament_links(html_content)
@@ -83,15 +84,17 @@ module PokerCalendar
       end
     end
 
+
     def make_info_file_path(tourney_link)
-      filename = "pg#{tourney_link.gsub("/", "-")}.txt"
+      # TODO: 違う日でも同じIDがありえるのでファイル名に日付を付ける
+      filename = make_info_file_name(tourney_link)
       File.join(@data_dir, filename)
     end
 
-    def make_response_file_path(link)
-      filename = "res-pg#{link.gsub("/", "-")}.json"
-      File.join(@data_dir, filename)
+    def make_info_file_name(tourney_link)
+      "pg-#{@date_str}-#{tourney_link.gsub("/", "-")}.txt"
     end
+
 
     def post_to_openai(info_html)
       response = @client.chat(

@@ -11,13 +11,13 @@ def main
   openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
 
   # スクレイピングの実行
-  scraper = TournamentScraper.new(openai_client, Settings::DATA_DIR)
-  tournament_links = scraper.fetch_daily_tournaments(today)
+  scraper = TournamentScraper.new(openai_client, Settings::DATA_DIR, today)
+  tournament_links = scraper.fetch_daily_tournaments
   scraper.process_tournaments(tournament_links)
 
   # CSVファイルの作成
   output_file = File.join(Settings::DATA_DIR, "tourney_info_#{today.strftime("%Y-%m-%d")}.csv")
-  parser = TournamentParser.new(Settings::DATA_DIR)
+  parser = TournamentParser.new(Settings::DATA_DIR, scraper)
   parser.parse_tournaments(tournament_links, output_file)
 
   # Google Spreadsheetへのアップロード

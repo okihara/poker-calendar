@@ -6,8 +6,9 @@ module PokerCalendar
   class TournamentParser
     include Loggable
 
-    def initialize(data_dir)
+    def initialize(data_dir, scraper)
       @data_dir = data_dir
+      @scraper = scraper
     end
 
     def parse_tournaments(tournament_links, output_file)
@@ -45,8 +46,8 @@ module PokerCalendar
     end
 
     def process_tournament(csv, link, index)
-      res_file_name = File.join(@data_dir, make_res_filename(link))
-      return unless File.exist?(res_file_name)
+      res_file_name = @scraper.make_response_file_path(link)
+      raise "error: res file not found: ##{res_file_name}" unless File.exist?(res_file_name)
 
       tournament_data = JSON.parse(File.read(res_file_name, encoding: 'UTF-8'))
       unless valid_tournament?(tournament_data)
@@ -88,6 +89,7 @@ module PokerCalendar
 
     def format_time(time)
       return nil unless time
+      return "" unless time.is_a?(String)
       time.scan(/\d{2}:\d{2}/)[0]
     end
 
