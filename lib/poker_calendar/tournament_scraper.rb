@@ -110,21 +110,22 @@ module PokerCalendar
 
     PROMPT = <<~PROMPT
       以下はポーカールームのトーナメント情報です
-      - shop_name
-      - address
-      - title
-      - date
-      - start_time
-      - late_registration_time
-      - entry_fee:参加費(integer)
-      - reentry_fee(integer)
-      - add_on(integer)
-      - prize_list(list<integer>)
-      - total_prize(integer)
-      - prize_text(text)
-      - guaranteed_amount:保証額(integer)
-      - is_jopt_prize(boolean)
-      - is_coin_prize(boolean)
+      - shop_name as string
+      - address as string
+      - area as string(渋谷,六本木,新宿,etc...)
+      - title as string
+      - date as string
+      - start_time as string
+      - late_registration_time as string
+      - entry_fee as integer(参加費)
+      - reentry_fee as integer(リエントリ費)
+      - add_on as integer(アドオン費)
+      - prize_list as list<integer>
+      - total_prize as integer
+      - prize_text as text
+      - guaranteed_amount as integer(コイン保証額)
+      - is_jopt_prize as boolean
+      - is_coin_prize as boolean
       を抜き出してjsonで返してください
       ---
     PROMPT
