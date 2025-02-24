@@ -7,6 +7,9 @@ require_relative '../config/settings'
 include PokerCalendar
 
 def main
+  # 実行前にtest.logを削除
+  File.delete('test.log') if File.exist?('test.log')
+
   today = Time.now
   openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
 
