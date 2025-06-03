@@ -1,31 +1,22 @@
-require 'openai'
-require_relative '../lib/poker_calendar/tournament_scraper'
-require_relative '../lib/poker_calendar/tournament_parser'
-require_relative '../lib/poker_calendar/google_spreadsheet_uploader'
-require_relative '../config/settings'
-
-include PokerCalendar
+require_relative '../lib/poker_calendar/container'
 
 def main
-  # 実行前にtest.logを削除
-  File.delete('test.log') if File.exist?('test.log')
-
+  container = PokerCalendar::Container.new
   today = Time.now
-  openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
-
+  
   # スクレイピングの実行
-  scraper = TournamentScraper.new(openai_client, Settings::DATA_DIR, today)
-  tournament_links = scraper.fetch_daily_tournaments
-  scraper.process_tournaments(tournament_links)
+  scraper = container.tournament_scraper
+  tournament_links = scraper.fetch_daily_tournaments(today)
+  scraper.process_tournaments(tournament_links, today)
 
   # CSVファイルの作成
-  output_file = File.join(Settings::DATA_DIR, "tourney_info_#{today.strftime("%Y-%m-%d")}.csv")
-  parser = TournamentParser.new(Settings::DATA_DIR, scraper)
-  parser.parse_tournaments(tournament_links, output_file)
+  output_file = File.join(container.settings.data_dir, "tourney_info_#{today.strftime("%Y-%m-%d")}.csv")
+  parser = container.tournament_parser
+  parser.parse_tournaments(tournament_links, output_file, today)
 
   # Google Spreadsheetへのアップロード
-  uploader = GoogleSpreadsheetUploader.new(Settings::CONFIG_PATH)
-  uploader.upload_csv(output_file, Settings::SPREADSHEET_KEY)
+  uploader = container.spreadsheet_uploader
+  uploader.upload_csv(output_file, container.settings.spreadsheet_key)
 end
 
 main if __FILE__ == $0

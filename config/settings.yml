@@ -1,0 +1,38 @@
+development:
+  spreadsheet_key: "17qhppvCNRnIX2wagimoAl6YHmaTaC0Re3ndwToletc0"
+  config_path: "config.json"
+  data_dir: "./data"
+  base_url: "https://pokerguild.jp"
+  openai:
+    model: "gpt-4o-mini"
+    temperature: 0.7
+    rate_limit_delay: 0.7
+  scraping:
+    request_delay: 1.0
+    max_retries: 3
+
+production:
+  spreadsheet_key: <%= ENV['SPREADSHEET_KEY'] %>
+  config_path: <%= ENV['CONFIG_PATH'] || 'config.json' %>
+  data_dir: <%= ENV['DATA_DIR'] || './data' %>
+  base_url: "https://pokerguild.jp"
+  openai:
+    model: <%= ENV['OPENAI_MODEL'] || 'gpt-4o-mini' %>
+    temperature: <%= ENV['OPENAI_TEMPERATURE'] || 0.7 %>
+    rate_limit_delay: <%= ENV['OPENAI_RATE_LIMIT_DELAY'] || 0.7 %>
+  scraping:
+    request_delay: <%= ENV['SCRAPING_REQUEST_DELAY'] || 1.0 %>
+    max_retries: <%= ENV['SCRAPING_MAX_RETRIES'] || 3 %>
+
+test:
+  spreadsheet_key: "test_spreadsheet_key"
+  config_path: "spec/fixtures/config.json"
+  data_dir: "./spec/tmp"
+  base_url: "https://pokerguild.jp"
+  openai:
+    model: "gpt-4o-mini"
+    temperature: 0.7
+    rate_limit_delay: 0.1
+  scraping:
+    request_delay: 0.1
+    max_retries: 1
