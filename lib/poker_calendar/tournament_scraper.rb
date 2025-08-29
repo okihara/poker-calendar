@@ -115,8 +115,8 @@ module PokerCalendar
       - area as string(渋谷,六本木,新宿,etc...)
       - title as string
       - date as string
-      - start_time as string
-      - late_registration_time as string
+      - start_time as string(YYYY/MM/DD HH:MM)
+      - late_registration_time as string(YYYY/MM/DD HH:MM)
       - entry_fee as integer(参加費)
       - reentry_fee as integer(リエントリ費)
       - add_on as integer(アドオン費)
