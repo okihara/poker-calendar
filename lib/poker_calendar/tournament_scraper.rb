@@ -117,6 +117,7 @@ module PokerCalendar
       - date as string
       - start_time as string(YYYY/MM/DD HH:MM)
       - late_registration_time as string(YYYY/MM/DD HH:MM)
+      - late_reentry_time as string(YYYY/MM/DD HH:MM)
       - entry_fee as integer(参加費)
       - reentry_fee as integer(リエントリ費)
       - add_on as integer(アドオン費)
