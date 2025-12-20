@@ -1,5 +1,6 @@
 require 'openai'
 require_relative '../lib/poker_calendar/tournament_scraper'
+require_relative '../lib/poker_calendar/tournament_analyzer'
 require_relative '../lib/poker_calendar/tournament_parser'
 require_relative '../lib/poker_calendar/google_spreadsheet_uploader'
 require_relative '../config/settings'
@@ -14,9 +15,13 @@ def main
   openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
 
   # スクレイピングの実行
-  scraper = TournamentScraper.new(openai_client, Settings::DATA_DIR, today)
+  scraper = TournamentScraper.new(Settings::DATA_DIR, today)
   tournament_links = scraper.fetch_daily_tournaments
-  scraper.process_tournaments(tournament_links)
+  scraper.fetch_tournaments(tournament_links)
+
+  # AI解析の実行
+  analyzer = TournamentAnalyzer.new(openai_client)
+  analyzer.process_tournaments(tournament_links, scraper)
 
   # CSVファイルの作成
   output_file = File.join(Settings::DATA_DIR, "tourney_info_#{today.strftime("%Y-%m-%d")}.csv")

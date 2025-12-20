@@ -2,16 +2,14 @@
 
 require 'time'
 require_relative './loggable'
-require_relative './tournament_analyzer'
 
 module PokerCalendar
   class TournamentScraper
     include Loggable
 
     BASE_URL = 'https://pokerguild.jp'
-    
-    def initialize(openai_client, data_dir, date)
-      @analyzer = TournamentAnalyzer.new(openai_client)
+
+    def initialize(data_dir, date)
       @data_dir = data_dir
       @date = date
       @date_str = date.strftime("%Y-%m-%d")
@@ -19,26 +17,31 @@ module PokerCalendar
 
     def fetch_daily_tournaments
       daily_file = File.join(@data_dir, "pg-#{@date_str}.html")
-      
+
       fetch_daily_page(daily_file)
-      
+
       html_content = File.read(daily_file, encoding: 'utf-8')
       extract_tournament_links(html_content)
     end
 
-    def process_tournaments(tournament_links)
-      log "Processing #{tournament_links.size} tournaments"
+    def fetch_tournaments(tournament_links)
+      log "Fetching #{tournament_links.size} tournaments"
       tournament_links.each_with_index do |link, index|
-        log "Processing tournament #{index + 1}/#{tournament_links.size}: #{link}"
+        log "Fetching tournament #{index + 1}/#{tournament_links.size}: #{link}"
         fetch_tournament_info(link)
-        process_tournament_info(link)
       end
+    end
+
+    def make_info_file_path(tourney_link)
+      filename = make_info_file_name(tourney_link)
+      File.join(@data_dir, filename)
     end
 
     def make_response_file_path(tourney_link)
       filename = "res-#{make_info_file_name(tourney_link)}.json"
       File.join(@data_dir, filename)
     end
+
     private
 
     def fetch_daily_page(file_path)
@@ -62,32 +65,6 @@ module PokerCalendar
       sleep(1)
       url = "#{BASE_URL}#{tourney_link}"
       `curl -L --compressed -X GET "#{url}" > #{file_path}`
-    end
-
-    def process_tournament_info(link)
-      res_file_path = make_response_file_path(link)
-      if File.exist?(res_file_path)
-        log "SKIP: Tournament analysis already exists for #{link}"
-        return
-      end
-
-      info_html = File.read(make_info_file_path(link), encoding: 'utf-8')
-
-      begin
-        sleep(0.7)
-        log "Processing tournament info for #{link}"
-        response = @analyzer.analyze(info_html)
-        File.write(res_file_path, response, encoding: 'UTF-8')
-      rescue => e
-        log "Error processing tournament: #{e.message}"
-      end
-    end
-
-
-    def make_info_file_path(tourney_link)
-      # TODO: 違う日でも同じIDがありえるのでファイル名に日付を付ける
-      filename = make_info_file_name(tourney_link)
-      File.join(@data_dir, filename)
     end
 
     def make_info_file_name(tourney_link)
