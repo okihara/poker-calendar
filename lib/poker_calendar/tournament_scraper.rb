@@ -1,9 +1,8 @@
 # encoding: utf-8
 
 require 'time'
-require 'json'
-require 'openai'
 require_relative './loggable'
+require_relative './tournament_analyzer'
 
 module PokerCalendar
   class TournamentScraper
@@ -12,7 +11,7 @@ module PokerCalendar
     BASE_URL = 'https://pokerguild.jp'
     
     def initialize(openai_client, data_dir, date)
-      @client = openai_client
+      @analyzer = TournamentAnalyzer.new(openai_client)
       @data_dir = data_dir
       @date = date
       @date_str = date.strftime("%Y-%m-%d")
@@ -73,11 +72,11 @@ module PokerCalendar
       end
 
       info_html = File.read(make_info_file_path(link), encoding: 'utf-8')
-      
+
       begin
         sleep(0.7)
         log "Processing tournament info for #{link}"
-        response = post_to_openai(info_html)
+        response = @analyzer.analyze(info_html)
         File.write(res_file_path, response, encoding: 'UTF-8')
       rescue => e
         log "Error processing tournament: #{e.message}"
@@ -94,41 +93,5 @@ module PokerCalendar
     def make_info_file_name(tourney_link)
       "pg-#{@date_str}-#{tourney_link.gsub("/", "-")}.txt"
     end
-
-
-    def post_to_openai(info_html)
-      response = @client.chat(
-        parameters: {
-          model: "gpt-4o-mini",
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: PROMPT + info_html }],
-          temperature: 0.7,
-        }
-      )
-      response.dig("choices", 0, "message", "content")
-    end
-
-    PROMPT = <<~PROMPT
-      以下はポーカールームのトーナメント情報です
-      - shop_name as string
-      - address as string
-      - area as string(渋谷,六本木,新宿,etc...)
-      - title as string
-      - date as string
-      - start_time as string(YYYY/MM/DD HH:MM)
-      - late_registration_time as string(YYYY/MM/DD HH:MM)
-      - late_reentry_time as string(YYYY/MM/DD HH:MM)
-      - entry_fee as integer(参加費)
-      - reentry_fee as integer(リエントリ費)
-      - add_on as integer(アドオン費)
-      - prize_list as list<integer>
-      - total_prize as integer
-      - prize_text as text
-      - guaranteed_amount as integer(コイン保証額)
-      - is_jopt_prize as boolean
-      - is_coin_prize as boolean
-      を抜き出してjsonで返してください
-      ---
-    PROMPT
   end
 end
