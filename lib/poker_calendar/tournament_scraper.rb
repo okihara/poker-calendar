@@ -72,3 +72,17 @@ module PokerCalendar
     end
   end
 end
+
+if __FILE__ == $0
+  require_relative '../../config/settings'
+
+  date = ARGV[0] ? Time.parse(ARGV[0]) : Time.now
+  scraper = PokerCalendar::TournamentScraper.new(PokerCalendar::Settings::DATA_DIR, date)
+
+  puts "Fetching tournaments for #{date.strftime('%Y-%m-%d')}..."
+  tournament_links = scraper.fetch_daily_tournaments
+  puts "Found #{tournament_links.size} tournaments"
+
+  scraper.fetch_tournaments(tournament_links)
+  puts "Done."
+end
