@@ -14,10 +14,20 @@ module PokerCalendar
     end
 
     def parse_tournaments(date, output_file)
-      date_str = date.strftime("%Y-%m-%d")
-      # res-pg-YYYY-MM-DD-*.json と res-pf-YYYY-MM-DD-*.json を対象
-      res_files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json"))
-      log "Parsing #{res_files.size} response files for #{date_str}"
+      parse_tournaments_for_dates([date], output_file)
+    end
+
+    def parse_tournaments_for_dates(dates, output_file)
+      # 全日付のレスポンスファイルを収集
+      res_files = []
+      dates.each do |date|
+        date_str = date.strftime("%Y-%m-%d")
+        files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json"))
+        log "Found #{files.size} response files for #{date_str}"
+        res_files.concat(files)
+      end
+
+      log "Parsing #{res_files.size} total response files"
 
       CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
         write_header(csv)
