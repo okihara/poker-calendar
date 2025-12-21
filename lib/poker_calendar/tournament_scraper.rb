@@ -50,25 +50,35 @@ module PokerCalendar
     end
 
     def extract_tournament_links(html_content)
-      html_content.scan(/<main>.*?<\/main>/m).join
-                 .scan(/\/tourneys\/\d+/)
+      # 新しいサイト構造: data-no 属性からトーナメントIDを抽出
+      html_content.scan(/class="list_item"[^>]*data-no="(\d+)"/)
+                 .flatten
                  .uniq
     end
 
-    def fetch_tournament_info(tourney_link)
-      file_path = make_info_file_path(tourney_link)
+    def fetch_tournament_info(tourney_no)
+      file_path = make_info_file_path(tourney_no)
       if File.exist?(file_path)
-        log "SKIP: Tournament info already exists for #{tourney_link}"
+        log "SKIP: Tournament info already exists for #{tourney_no}"
         return
       end
 
       sleep(1)
-      url = "#{BASE_URL}#{tourney_link}"
-      `curl -L --compressed -X GET "#{url}" > #{file_path}`
+      # 新しいサイト構造: POST リクエストで個別ページを取得
+      html = `curl -L --compressed -s -X POST "#{BASE_URL}/tournament" -d "no=#{tourney_no}"`
+      # トーナメント情報部分のみ抽出して保存
+      tournament_section = extract_tournament_section(html)
+      File.write(file_path, tournament_section, encoding: 'UTF-8')
     end
 
-    def make_info_file_name(tourney_link)
-      "pg-#{@date_str}-#{tourney_link.gsub("/", "-")}.txt"
+    def extract_tournament_section(html)
+      html = html.force_encoding('UTF-8')
+      match = html.match(/<div id="scn_tournament_page".*?<\/article>/m)
+      match ? match[0] : html
+    end
+
+    def make_info_file_name(tourney_no)
+      "pg-#{@date_str}-tourney-#{tourney_no}.txt"
     end
   end
 end

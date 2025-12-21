@@ -81,7 +81,7 @@ module PokerCalendar
         format_money(data["total_prize"]),
         format_money(data["guaranteed_amount"]),
         data["prize_text"],
-        "#{TournamentScraper::BASE_URL}#{link}",
+        "#{TournamentScraper::BASE_URL}/tournament?no=#{link}",
       ]
     end
 
