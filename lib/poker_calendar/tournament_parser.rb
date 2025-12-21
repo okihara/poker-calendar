@@ -6,15 +6,24 @@ module PokerCalendar
   class TournamentParser
     include Loggable
 
-    def initialize(data_dir, scraper)
+    PG_BASE_URL = 'https://pokerguild.jp'.freeze
+    PF_BASE_URL = 'https://pokerfans.jp'.freeze
+
+    def initialize(data_dir)
       @data_dir = data_dir
-      @scraper = scraper
     end
 
-    def parse_tournaments(tournament_links, output_file)
+    def parse_tournaments(date, output_file)
+      date_str = date.strftime("%Y-%m-%d")
+      # res-pg-YYYY-MM-DD-*.json と res-pf-YYYY-MM-DD-*.json を対象
+      res_files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json"))
+      log "Parsing #{res_files.size} response files for #{date_str}"
+
       CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
         write_header(csv)
-        process_tournaments(csv, tournament_links)
+        res_files.each_with_index do |res_file, index|
+          process_tournament(csv, res_file, index)
+        end
       end
     end
 
@@ -40,32 +49,21 @@ module PokerCalendar
       ]
     end
 
-    def process_tournaments(csv, tournament_links)
-      tournament_links.each_with_index do |link, index|
-        process_tournament(csv, link, index)
-      end
-    end
-
-    def process_tournament(csv, link, index)
-      res_file_name = @scraper.make_response_file_path(link)
-      raise "error: res file not found: ##{res_file_name}" unless File.exist?(res_file_name)
-
-      tournament_data = JSON.parse(File.read(res_file_name, encoding: 'UTF-8'))
+    def process_tournament(csv, res_file, index)
+      tournament_data = JSON.parse(File.read(res_file, encoding: 'UTF-8'))
       unless valid_tournament?(tournament_data)
-        log "Invalid tournament data for #{link}"
+        log "Invalid tournament data: #{File.basename(res_file)}"
         return
       end
 
-      write_tournament_data(csv, tournament_data, index, link)
+      write_tournament_data(csv, tournament_data, index, res_file)
     end
 
     def valid_tournament?(data)
       data["shop_name"] && data["date"]
     end
 
-    def write_tournament_data(csv, data, index, link)
-      # log "#{index + 1} #{data["shop_name"]} #{data["title"]} #{link}"
-
+    def write_tournament_data(csv, data, index, res_file)
       csv << [
         index + 1,
         data["shop_name"],
@@ -81,12 +79,28 @@ module PokerCalendar
         format_money(data["total_prize"]),
         format_money(data["guaranteed_amount"]),
         data["prize_text"],
-        "#{TournamentScraper::BASE_URL}/tournament?no=#{link}",
+        make_tournament_link(res_file),
       ]
     end
 
-    def make_res_filename(link)
-      "res-pg#{link.gsub("/", "-")}.json"
+    def make_tournament_link(res_file)
+      basename = File.basename(res_file)
+      # res-pg-2025-01-01-tourney-12345.txt.json -> pg, 12345
+      # res-pf-2025-01-01-event-12345.txt.json -> pf, 12345
+      if basename =~ /^res-(pg|pf)-\d{4}-\d{2}-\d{2}-(?:tourney|event)-(\d+)\.txt\.json$/
+        source = $1
+        id = $2
+        case source
+        when 'pg'
+          "#{PG_BASE_URL}/tournament?no=#{id}"
+        when 'pf'
+          "#{PF_BASE_URL}/events/#{id}"
+        else
+          ""
+        end
+      else
+        ""
+      end
     end
 
     def format_time(time)

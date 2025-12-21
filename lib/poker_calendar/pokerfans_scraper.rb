@@ -32,7 +32,7 @@ module PokerCalendar
         break if events.size < 50  # 50件未満なら最後のページ
 
         page += 1
-        sleep(1)
+        sleep(2)
       end
 
       all_events.uniq { |e| e[:id] }
@@ -103,7 +103,7 @@ module PokerCalendar
         return
       end
 
-      sleep(1)
+      sleep(2)
       url = "#{BASE_URL}/events/#{event_id}"
       html = `curl -L --compressed -s -X GET "#{url}"`
       # イベント情報部分のみ抽出して保存

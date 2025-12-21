@@ -1,5 +1,6 @@
 require 'openai'
 require_relative '../lib/poker_calendar/tournament_scraper'
+require_relative '../lib/poker_calendar/pokerfans_scraper'
 require_relative '../lib/poker_calendar/tournament_analyzer'
 require_relative '../lib/poker_calendar/tournament_parser'
 require_relative '../lib/poker_calendar/google_spreadsheet_uploader'
@@ -14,19 +15,24 @@ def main
   today = Time.now
   openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
 
-  # スクレイピングの実行
-  scraper = TournamentScraper.new(Settings::DATA_DIR, today)
-  tournament_links = scraper.fetch_daily_tournaments
-  scraper.fetch_tournaments(tournament_links)
+  # pokerguild スクレイピングの実行
+  pg_scraper = TournamentScraper.new(Settings::DATA_DIR, today)
+  pg_tournaments = pg_scraper.fetch_daily_tournaments
+  pg_scraper.fetch_tournaments(pg_tournaments)
 
-  # AI解析の実行
-  analyzer = TournamentAnalyzer.new(openai_client)
-  analyzer.process_tournaments(tournament_links, scraper)
+  # pokerfans スクレイピングの実行
+  pf_scraper = PokerfansScraper.new(Settings::DATA_DIR, today)
+  pf_events = pf_scraper.fetch_daily_tournaments
+  pf_scraper.fetch_tournaments(pf_events)
 
-  # CSVファイルの作成
+  # AI解析の実行（該当日付の全 .txt ファイルを処理）
+  analyzer = TournamentAnalyzer.new(openai_client, Settings::DATA_DIR)
+  analyzer.process_tournaments(today)
+
+  # CSVファイルの作成（該当日付の全 .json ファイルを処理）
   output_file = File.join(Settings::DATA_DIR, "tourney_info_#{today.strftime("%Y-%m-%d")}.csv")
-  parser = TournamentParser.new(Settings::DATA_DIR, scraper)
-  parser.parse_tournaments(tournament_links, output_file)
+  parser = TournamentParser.new(Settings::DATA_DIR)
+  parser.parse_tournaments(today, output_file)
 
   # Google Spreadsheetへのアップロード
   uploader = GoogleSpreadsheetUploader.new(Settings::CONFIG_PATH)

@@ -7,36 +7,47 @@ module PokerCalendar
   class TournamentAnalyzer
     include Loggable
 
-    def initialize(openai_client)
+    def initialize(openai_client, data_dir)
       @client = openai_client
+      @data_dir = data_dir
     end
 
-    def process_tournaments(tournament_links, scraper)
-      log "Analyzing #{tournament_links.size} tournaments"
-      tournament_links.each_with_index do |link, index|
-        process_tournament(link, scraper, index, tournament_links.size)
+    def process_tournaments(date)
+      date_str = date.strftime("%Y-%m-%d")
+      # pg-YYYY-MM-DD-*.txt と pf-YYYY-MM-DD-*.txt を対象
+      info_files = Dir.glob(File.join(@data_dir, "*-#{date_str}-*.txt"))
+      log "Analyzing #{info_files.size} tournament files for #{date_str}"
+
+      info_files.each_with_index do |info_file, index|
+        process_tournament(info_file, index, info_files.size)
       end
     end
 
     private
 
-    def process_tournament(link, scraper, index, total)
-      res_file_path = scraper.make_response_file_path(link)
+    def process_tournament(info_file, index, total)
+      res_file_path = make_response_file_path(info_file)
       if File.exist?(res_file_path)
-        log "SKIP: Tournament analysis already exists for #{link}"
+        log "SKIP: Tournament analysis already exists for #{File.basename(info_file)}"
         return
       end
 
-      info_html = File.read(scraper.make_info_file_path(link), encoding: 'utf-8')
+      info_html = File.read(info_file, encoding: 'utf-8')
 
       begin
         sleep(0.7)
-        log "Analyzing tournament #{index + 1}/#{total}: #{link}"
+        log "Analyzing tournament #{index + 1}/#{total}: #{File.basename(info_file)}"
         response = analyze(info_html)
         File.write(res_file_path, response, encoding: 'UTF-8')
       rescue => e
         log "Error analyzing tournament: #{e.message}"
       end
+    end
+
+    def make_response_file_path(info_file)
+      dir = File.dirname(info_file)
+      basename = File.basename(info_file)
+      File.join(dir, "res-#{basename}.json")
     end
 
     def analyze(info_html)

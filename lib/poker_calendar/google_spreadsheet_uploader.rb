@@ -48,7 +48,7 @@ module PokerCalendar
       log "Total rows to upload: #{csv_data.count}"
 
       csv_data.each_with_index do |row, row_index|
-        log "Uploading row #{row_index + 1} #{row[3]}"
+        log "Uploading row #{row_index + 1} #{row[3]} #{row[14]}"
         row.each_with_index do |cell, col_index|
           worksheet[row_index + 1, col_index + 1] = cell
         end
