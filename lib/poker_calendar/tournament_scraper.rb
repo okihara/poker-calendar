@@ -16,12 +16,26 @@ module PokerCalendar
     end
 
     def fetch_daily_tournaments
-      daily_file = File.join(@data_dir, "pg-#{@date_str}.html")
+      all_tournament_ids = []
+      page = 1
 
-      fetch_daily_page(daily_file)
+      while page <= 10
+        log "Fetching daily tournament list page #{page} for #{@date_str}"
+        html_content = fetch_daily_page(page)
+        tournament_ids = extract_tournament_links(html_content)
 
-      html_content = File.read(daily_file, encoding: 'utf-8')
-      extract_tournament_links(html_content)
+        break if tournament_ids.empty?
+
+        all_tournament_ids.concat(tournament_ids)
+        log "Found #{tournament_ids.size} tournaments on page #{page} (total: #{all_tournament_ids.size})"
+
+        break if tournament_ids.size < 40  # 40件未満なら最後のページ
+
+        page += 1
+        sleep(1)
+      end
+
+      all_tournament_ids.uniq
     end
 
     def fetch_tournaments(tournament_links)
@@ -44,9 +58,13 @@ module PokerCalendar
 
     private
 
-    def fetch_daily_page(file_path)
-      log "Fetching daily tournament list for #{@date_str}"
-      `curl -L --compressed -X GET "#{BASE_URL}/?date=#{@date_str}" > #{file_path}`
+    def fetch_daily_page(page = 1)
+      html = if page == 1
+        `curl -L --compressed -s -X GET "#{BASE_URL}/?date=#{@date_str}"`
+      else
+        `curl -L --compressed -s -X POST "#{BASE_URL}/" -d "date=#{@date_str}&p=#{page}"`
+      end
+      html.force_encoding('UTF-8')
     end
 
     def extract_tournament_links(html_content)
