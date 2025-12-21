@@ -92,7 +92,7 @@ module PokerCalendar
       end
 
       # タイトルに「コイン」または「coin」が含まれていない場合はスキップ
-      unless title =~ /コイン|coin|サテ|現金/i
+      unless title =~ /コイン|coin|サテ|現金|協賛/i
         log "SKIP: No coin keyword - #{title}"
         return
       end
@@ -106,6 +106,13 @@ module PokerCalendar
       sleep(2)
       url = "#{BASE_URL}/events/#{event_id}"
       html = `curl -L --compressed -s -X GET "#{url}"`
+
+      # エラーページの場合はスキップ
+      if html.include?('Error | Poker Fans')
+        log "SKIP: Error page returned for event #{event_id}"
+        return
+      end
+
       # イベント情報部分のみ抽出して保存
       event_section = extract_event_section(html)
       File.write(file_path, event_section, encoding: 'UTF-8')
