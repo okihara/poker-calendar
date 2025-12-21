@@ -57,7 +57,7 @@ module PokerCalendar
       - address as string
       - area as string(渋谷,六本木,新宿,etc...)
       - title as string
-      - date as string(YYYY/MM/DD HH:MM)
+      - date as string(YYYY/MM/DD)
       - start_time as string(YYYY/MM/DD HH:MM)
       - late_registration_time as string(YYYY/MM/DD HH:MM)
       - late_reentry_time as string(YYYY/MM/DD HH:MM)
