@@ -120,9 +120,21 @@ module PokerCalendar
 
     def extract_event_section(html)
       html = html.force_encoding('UTF-8')
+      result = ""
+
+      # breadcrumbs からタイトルを抽出
+      title_match = html.match(/<div class="breadcrumbs">.*?<h1[^>]*>(.*?)<\/h1>/m)
+      if title_match
+        result += "<title>#{title_match[1]}</title>\n"
+      end
+
       # job-description クラスがイベント詳細を含む
-      match = html.match(/<div class="job-description">.*?<\/div>\s*<!--=== End Job Description ===/m)
-      match ? match[0] : html
+      desc_match = html.match(/<div class="job-description">.*?<\/div>\s*<!--=== End Job Description ===/m)
+      if desc_match
+        result += desc_match[0]
+      end
+
+      result.empty? ? html : result
     end
 
     def make_info_file_name(event_id)
