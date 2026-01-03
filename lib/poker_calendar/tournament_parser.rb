@@ -69,6 +69,9 @@ module PokerCalendar
     end
 
     def write_tournament_data(csv, data, index, res_file)
+      title = data["title"].to_s
+      has_saidai = title.include?("最大")
+
       csv << [
         index + 1,
         data["shop_name"],
@@ -80,10 +83,10 @@ module PokerCalendar
         data["late_registration_time"] || data["start_time"],
         format_money(data["entry_fee"]),
         format_money(data["add_on"]),
-        format_prize_list(data["prize_list"]),
-        format_money(data["total_prize"]),
+        has_saidai ? 0 : format_prize_list(data["prize_list"]),
+        has_saidai ? 0 : format_money(data["total_prize"]),
         format_money(data["guaranteed_amount"]),
-        data["prize_text"],
+        has_saidai ? 0 : data["prize_text"],
         make_tournament_link(res_file),
       ]
     end
