@@ -13,6 +13,7 @@ module PokerCalendar
       @data_dir = data_dir
       @date = date
       @date_str = date.strftime("%Y-%m-%d")
+      @date_param = date.strftime("%Y%m%d")  # API用パラメータ（ハイフンなし）
     end
 
     def fetch_daily_tournaments
@@ -60,16 +61,16 @@ module PokerCalendar
 
     def fetch_daily_page(page = 1)
       html = if page == 1
-        `curl -L --compressed -s -X GET "#{BASE_URL}/?date=#{@date_str}"`
+        `curl -L --compressed -s -X GET "#{BASE_URL}/?d=#{@date_param}"`
       else
-        `curl -L --compressed -s -X POST "#{BASE_URL}/" -d "date=#{@date_str}&p=#{page}"`
+        `curl -L --compressed -s -X POST "#{BASE_URL}/" -d "d=#{@date_param}&p=#{page}"`
       end
       html.force_encoding('UTF-8')
     end
 
     def extract_tournament_links(html_content)
-      # 新しいサイト構造: data-no 属性からトーナメントIDを抽出
-      html_content.scan(/class="list_item"[^>]*data-no="(\d+)"/)
+      # サイト構造: data-itemkey 属性からトーナメントIDを抽出
+      html_content.scan(/class="list_item"[^>]*data-itemkey="(\d+)"/)
                  .flatten
                  .uniq
     end

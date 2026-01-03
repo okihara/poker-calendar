@@ -51,16 +51,21 @@ module PokerCalendar
 
     def process_tournament(csv, res_file, index)
       tournament_data = JSON.parse(File.read(res_file, encoding: 'UTF-8'))
-      unless valid_tournament?(tournament_data)
-        log "Invalid tournament data: #{File.basename(res_file)}"
+      reason = invalid_reason(tournament_data)
+      if reason
+        log "Skip: #{File.basename(res_file)} (#{reason})"
         return
       end
 
       write_tournament_data(csv, tournament_data, index, res_file)
     end
 
-    def valid_tournament?(data)
-      data["shop_name"] && data["date"]
+    def invalid_reason(data)
+      return "missing shop_name or date" unless data["shop_name"] && data["date"]
+      shop_name = data["shop_name"].to_s
+      return "shop_name contains JOPT" if shop_name.include?("JOPT")
+      return "shop_name contains ベルサール" if shop_name.include?("ベルサール")
+      nil
     end
 
     def write_tournament_data(csv, data, index, res_file)
