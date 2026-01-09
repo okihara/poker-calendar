@@ -66,6 +66,16 @@ module PokerCalendar
 
     PROMPT = <<~PROMPT
       以下はポーカールームのトーナメント情報です
+
+     【重要な注意事項】
+      - 1つのトーナメント情報のみを抽出してください
+      - 複数のトーナメントが並列で記載されている場合は、最初の1つだけを抽出してください
+      - prize_listには順位ごとの賞金を個別に記載してください
+      - 1日に複数回開催される場合も、1つのトーナメントとして扱ってください
+      - json 形式で出力してください
+
+      抽出フィールド:
+      - shop_name as string
       - shop_name as string
       - address as string
       - area as string(渋谷,六本木,新宿,etc...)
