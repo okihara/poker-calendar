@@ -58,7 +58,7 @@ module PokerCalendar
     def analyze(info_html, year)
       year_instruction = "※日付の年は必ず#{year}年としてください。\n\n"
       body = {
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-nano",
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
         temperature: 0.7,
