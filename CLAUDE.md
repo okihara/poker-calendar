@@ -14,6 +14,8 @@ This is a Ruby application that scrapes poker tournament information from pokerg
 
 - **Run the application**: `ruby bin/update_calendar.rb`
 - **Install dependencies**: `bundle install`
+- **単一トーナメントのAI解析テスト**: `ruby lib/poker_calendar/tournament_analyzer.rb data/<file>.txt`
+  - 既存のHTMLファイル1つをOpenAI APIに投げて結果のJSONを表示（ファイル保存なし）
 
 ## Architecture
 

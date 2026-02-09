@@ -98,3 +98,27 @@ module PokerCalendar
     PROMPT
   end
 end
+
+if __FILE__ == $0
+  require 'openai'
+
+  file = ARGV[0]
+  unless file
+    puts "Usage: ruby #{$0} <tournament_file.txt>"
+    exit 1
+  end
+
+  unless File.exist?(file)
+    puts "File not found: #{file}"
+    exit 1
+  end
+
+  client = OpenAI::Client.new(access_token: File.read(".env").strip)
+  analyzer = PokerCalendar::TournamentAnalyzer.new(client, File.dirname(file))
+
+  html = File.read(file, encoding: 'utf-8')
+  year = file[/(\d{4})-\d{2}-\d{2}/, 1]&.to_i || Time.now.year
+
+  response = analyzer.send(:analyze, html, year)
+  puts JSON.pretty_generate(JSON.parse(response))
+end
