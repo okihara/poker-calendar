@@ -1,4 +1,3 @@
-require 'openai'
 require_relative '../lib/poker_calendar/tournament_scraper'
 require_relative '../lib/poker_calendar/pokerfans_scraper'
 require_relative '../lib/poker_calendar/tournament_analyzer'
@@ -8,7 +7,7 @@ require_relative '../config/settings'
 
 include PokerCalendar
 
-def process_date(date, openai_client)
+def process_date(date, api_key)
   date_str = date.strftime("%Y-%m-%d")
   puts "Processing date: #{date_str}"
 
@@ -23,7 +22,7 @@ def process_date(date, openai_client)
   pf_scraper.fetch_tournaments(pf_events)
 
   # AI解析の実行（該当日付の全 .txt ファイルを処理）
-  analyzer = TournamentAnalyzer.new(openai_client, Settings::DATA_DIR)
+  analyzer = TournamentAnalyzer.new(api_key, Settings::DATA_DIR)
   analyzer.process_tournaments(date)
 
   # CSVファイルの作成（該当日付の全 .json ファイルを処理）
@@ -40,12 +39,12 @@ def main
 
   today = Time.now
   tomorrow = today + (24 * 60 * 60)  # 1日後
-  openai_client = OpenAI::Client.new(access_token: File.read(".env").strip)
+  api_key = File.read(".env").strip
 
   # 今日と明日の情報を取得
   csv_files = []
   [today, tomorrow].each do |date|
-    csv_files << process_date(date, openai_client)
+    csv_files << process_date(date, api_key)
   end
 
   # Google Spreadsheetへのアップロード（複数CSVファイル）

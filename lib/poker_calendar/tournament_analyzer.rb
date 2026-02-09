@@ -1,14 +1,18 @@
 # encoding: utf-8
 
 require 'json'
+require 'net/http'
+require 'uri'
 require_relative './loggable'
 
 module PokerCalendar
   class TournamentAnalyzer
     include Loggable
 
-    def initialize(openai_client, data_dir)
-      @client = openai_client
+    OPENAI_API_URL = URI('https://api.openai.com/v1/chat/completions')
+
+    def initialize(api_key, data_dir)
+      @api_key = api_key
       @data_dir = data_dir
     end
 
@@ -53,15 +57,26 @@ module PokerCalendar
 
     def analyze(info_html, year)
       year_instruction = "※日付の年は必ず#{year}年としてください。\n\n"
-      response = @client.chat(
-        parameters: {
-          model: "gpt-4o-mini",
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
-          temperature: 0.7,
-        }
-      )
-      response.dig("choices", 0, "message", "content")
+      body = {
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
+        temperature: 0.7,
+      }
+
+      http = Net::HTTP.new(OPENAI_API_URL.host, OPENAI_API_URL.port)
+      http.use_ssl = true
+
+      request = Net::HTTP::Post.new(OPENAI_API_URL)
+      request['Authorization'] = "Bearer #{@api_key}"
+      request['Content-Type'] = 'application/json'
+      request.body = JSON.generate(body)
+
+      response = http.request(request)
+      raise "OpenAI API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+
+      parsed = JSON.parse(response.body)
+      parsed.dig("choices", 0, "message", "content")
     end
 
     PROMPT = <<~PROMPT
@@ -100,8 +115,6 @@ module PokerCalendar
 end
 
 if __FILE__ == $0
-  require 'openai'
-
   file = ARGV[0]
   unless file
     puts "Usage: ruby #{$0} <tournament_file.txt>"
@@ -113,8 +126,8 @@ if __FILE__ == $0
     exit 1
   end
 
-  client = OpenAI::Client.new(access_token: File.read(".env").strip)
-  analyzer = PokerCalendar::TournamentAnalyzer.new(client, File.dirname(file))
+  api_key = File.read(".env").strip
+  analyzer = PokerCalendar::TournamentAnalyzer.new(api_key, File.dirname(file))
 
   html = File.read(file, encoding: 'utf-8')
   year = file[/(\d{4})-\d{2}-\d{2}/, 1]&.to_i || Time.now.year

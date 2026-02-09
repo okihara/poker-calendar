@@ -5,7 +5,6 @@ GEM
     base64 (0.2.0)
     csv (3.3.2)
     declarative (0.0.20)
-    event_stream_parser (1.0.0)
     faraday (1.10.4)
       faraday-em_http (~> 1.0)
       faraday-em_synchrony (~> 1.0)
@@ -72,10 +71,6 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.4.0)
-    ruby-openai (7.3.1)
-      event_stream_parser (>= 0.3.0, < 2.0.0)
-      faraday (>= 1)
-      faraday-multipart (>= 1)
     ruby2_keywords (0.0.5)
     signet (0.19.0)
       addressable (~> 2.8)
@@ -92,7 +87,6 @@ DEPENDENCIES
   csv
   google_drive
   mutex_m
-  ruby-openai
 
 BUNDLED WITH
-   2.6.3
+   2.6.9
