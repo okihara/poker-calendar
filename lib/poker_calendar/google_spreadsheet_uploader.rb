@@ -10,17 +10,18 @@ module PokerCalendar
       @session = GoogleDrive::Session.from_service_account_key(config_path)
     end
 
-    def upload_csv(csv_file, spreadsheet_key)
-      log "Uploading CSV file to Google Spreadsheet...#{csv_file}"
+    def upload_csv(csv_files, spreadsheet_key)
+      csv_files = Array(csv_files)  # 単一ファイルでも配列でも対応
+      log "Uploading #{csv_files.size} CSV file(s) to Google Spreadsheet..."
       begin
         spreadsheet = @session.spreadsheet_by_key(spreadsheet_key)
         worksheet = spreadsheet.worksheets.first
 
         clear_worksheet(worksheet)
-        upload_data(worksheet, csv_file)
-        
+        upload_multiple_data(worksheet, csv_files)
+
         worksheet.save
-        log "CSV file uploaded to Google Spreadsheet successfully."
+        log "CSV files uploaded to Google Spreadsheet successfully."
       rescue Google::Apis::AuthorizationError => e
         log "認証エラーが発生しました: #{e.message}"
         raise
@@ -43,16 +44,35 @@ module PokerCalendar
       end
     end
 
-    def upload_data(worksheet, csv_file)
-      csv_data = CSV.read(csv_file, encoding: 'UTF-8')
-      log "Total rows to upload: #{csv_data.count}"
+    def upload_multiple_data(worksheet, csv_files)
+      current_row = 1
+      header_written = false
 
-      csv_data.each_with_index do |row, row_index|
-        log "Uploading row #{row_index + 1} #{row[3]} #{row[14]}"
-        row.each_with_index do |cell, col_index|
-          worksheet[row_index + 1, col_index + 1] = cell
+      csv_files.each do |csv_file|
+        next unless File.exist?(csv_file)
+
+        log "Processing: #{csv_file}"
+        csv_data = CSV.read(csv_file, encoding: 'UTF-8')
+
+        csv_data.each_with_index do |row, index|
+          # ヘッダー行は最初のファイルのみ書き込む
+          if index == 0
+            if header_written
+              next
+            else
+              header_written = true
+            end
+          end
+
+          log "Uploading row #{current_row} #{row[3]} #{row[14]}"
+          row.each_with_index do |cell, col_index|
+            worksheet[current_row, col_index + 1] = cell
+          end
+          current_row += 1
         end
       end
+
+      log "Total rows uploaded: #{current_row - 1}"
     end
   end
 end
