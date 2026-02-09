@@ -3,6 +3,7 @@ require_relative '../lib/poker_calendar/pokerfans_scraper'
 require_relative '../lib/poker_calendar/tournament_analyzer'
 require_relative '../lib/poker_calendar/tournament_parser'
 require_relative '../lib/poker_calendar/google_spreadsheet_uploader'
+require_relative '../lib/poker_calendar/data_cleaner'
 require_relative '../config/settings'
 
 include PokerCalendar
@@ -50,6 +51,10 @@ def main
   # Google Spreadsheetへのアップロード（複数CSVファイル）
   uploader = GoogleSpreadsheetUploader.new(Settings::CONFIG_PATH)
   uploader.upload_csv(csv_files, Settings::SPREADSHEET_KEY)
+
+  # 古いデータのクリーンアップ
+  cleaner = DataCleaner.new(Settings::DATA_DIR, Settings::DATA_RETENTION_DAYS)
+  cleaner.clean
 end
 
 main if __FILE__ == $0

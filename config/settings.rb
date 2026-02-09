@@ -3,5 +3,6 @@ module PokerCalendar
     SPREADSHEET_KEY = "17qhppvCNRnIX2wagimoAl6YHmaTaC0Re3ndwToletc0"
     CONFIG_PATH = "config.json"
     DATA_DIR = "./data"
+    DATA_RETENTION_DAYS = 7
   end
 end
