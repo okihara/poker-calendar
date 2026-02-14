@@ -8,6 +8,14 @@ require_relative '../config/settings'
 
 include PokerCalendar
 
+def generate_csv(date)
+  date_str = date.strftime("%Y-%m-%d")
+  output_file = File.join(Settings::DATA_DIR, "tourney_info_#{date_str}.csv")
+  parser = TournamentParser.new(Settings::DATA_DIR)
+  parser.parse_tournaments(date, output_file)
+  output_file
+end
+
 def process_date(date, api_key)
   date_str = date.strftime("%Y-%m-%d")
   puts "Processing date: #{date_str}"
@@ -27,11 +35,7 @@ def process_date(date, api_key)
   analyzer.process_tournaments(date)
 
   # CSVファイルの作成（該当日付の全 .json ファイルを処理）
-  output_file = File.join(Settings::DATA_DIR, "tourney_info_#{date_str}.csv")
-  parser = TournamentParser.new(Settings::DATA_DIR)
-  parser.parse_tournaments(date, output_file)
-
-  output_file
+  generate_csv(date)
 end
 
 def main
@@ -43,9 +47,12 @@ def main
   tomorrow = today + (24 * 60 * 60)  # 1日後
   api_key = File.read(".env").strip
 
-  # 昨日と今日と明日の情報を取得
+  # 昨日はCSV作成のみ（スクレイピング・AI解析は処理済み）
   csv_files = []
-  [yesterday, today, tomorrow].each do |date|
+  csv_files << generate_csv(yesterday)
+
+  # 今日と明日はスクレイピングからフル処理
+  [today, tomorrow].each do |date|
     csv_files << process_date(date, api_key)
   end
 
