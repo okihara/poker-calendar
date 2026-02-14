@@ -39,12 +39,13 @@ def main
   File.delete('test.log') if File.exist?('test.log')
 
   today = Time.now
+  yesterday = today - (24 * 60 * 60)  # 1日前
   tomorrow = today + (24 * 60 * 60)  # 1日後
   api_key = File.read(".env").strip
 
-  # 今日と明日の情報を取得
+  # 昨日と今日と明日の情報を取得
   csv_files = []
-  [today, tomorrow].each do |date|
+  [yesterday, today, tomorrow].each do |date|
     csv_files << process_date(date, api_key)
   end
 
