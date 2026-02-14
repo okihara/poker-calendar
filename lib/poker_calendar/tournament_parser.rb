@@ -1,5 +1,6 @@
 require 'json'
 require 'csv'
+require 'time'
 require_relative './loggable'
 
 module PokerCalendar
@@ -72,6 +73,8 @@ module PokerCalendar
       title = data["title"].to_s
       has_saidai = title.include?("最大")
 
+      late_time = fix_late_registration_time(data["start_time"], data["late_registration_time"])
+
       csv << [
         index + 1,
         data["shop_name"],
@@ -80,7 +83,7 @@ module PokerCalendar
         data["title"],
         data["date"],
         data["start_time"],
-        data["late_registration_time"] || data["start_time"],
+        late_time,
         format_money(data["entry_fee"]),
         format_money(data["add_on"]),
         has_saidai ? 0 : format_prize_list(data["prize_list"]),
@@ -89,6 +92,28 @@ module PokerCalendar
         has_saidai ? 0 : data["prize_text"],
         make_tournament_link(res_file),
       ]
+    end
+
+    def fix_late_registration_time(start_time_str, late_time_str)
+      return start_time_str unless late_time_str && !late_time_str.empty?
+
+      begin
+        start_time = Time.strptime(start_time_str, "%Y/%m/%d %H:%M")
+        late_time = Time.strptime(late_time_str, "%Y/%m/%d %H:%M")
+      rescue ArgumentError, TypeError
+        return start_time_str
+      end
+
+      return late_time_str if late_time >= start_time
+
+      # 開始が18時以降でレイトが6時以前 → 翌日の深夜イベント
+      if start_time.hour >= 18 && late_time.hour <= 6
+        next_day = late_time + 86400
+        return next_day.strftime("%Y/%m/%d %H:%M")
+      end
+
+      # それ以外の逆転 → 開始時間にフォールバック
+      start_time_str
     end
 
     def make_tournament_link(res_file)
