@@ -91,9 +91,8 @@ module PokerCalendar
 
       抽出フィールド:
       - shop_name as string
-      - shop_name as string
       - address as string
-      - area as string(必ず住所(address)から判定すること。店名や雰囲気で推測しない。例: 新宿,渋谷,六本木,新橋,赤坂,秋葉原,上野,湯島,池袋,etc... 住所が不明な場合のみ店名から判定し、それも不明なら空文字)
+      - area as string(必ず住所(address)から判定すること。店名や雰囲気で推測しない。次のリストに該当があればその表記を使う: 新宿,渋谷,六本木,西麻布,赤坂,新橋,銀座,秋葉原,上野,湯島,浅草,浅草橋,人形町,池袋,五反田,恵比寿,目黒,蒲田,大森,下北沢,中野,練馬,吉祥寺,金町,葛西,国分寺,立川,八王子,町田,宇都宮,名古屋,京都,大阪,金沢。リストにない場合は最寄り駅名か市区名を1語で。住所が不明な場合のみ店名から判定し、それも不明なら空文字)
       - title as string
       - date as string(YYYY/MM/DD)
       - start_time as string(YYYY/MM/DD HH:MM)
