@@ -58,13 +58,16 @@ module PokerCalendar
     def parse_tournaments(date, output_file)
       date_str = date.strftime("%Y-%m-%d")
       # res-pg-YYYY-MM-DD-*.json と res-pf-YYYY-MM-DD-*.json を対象
-      res_files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json"))
+      res_files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json")).sort
       log "Parsing #{res_files.size} response files for #{date_str}"
+
+      tournaments = res_files.filter_map { |res_file| load_tournament(res_file) }
+      tournaments = dedupe_tournaments(tournaments)
 
       CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
         write_header(csv)
-        res_files.each_with_index do |res_file, index|
-          process_tournament(csv, res_file, index)
+        tournaments.each_with_index do |tournament, index|
+          write_tournament_data(csv, tournament[:data], index, tournament[:res_file])
         end
       end
     end
@@ -91,15 +94,99 @@ module PokerCalendar
       ]
     end
 
-    def process_tournament(csv, res_file, index)
+    def load_tournament(res_file)
       tournament_data = JSON.parse(File.read(res_file, encoding: 'UTF-8'))
       reason = invalid_reason(tournament_data)
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
-        return
+        return nil
       end
 
-      write_tournament_data(csv, tournament_data, index, res_file)
+      { data: tournament_data, res_file: res_file }
+    end
+
+    # 同じイベントがpokerguildとpokerfansの両方に登録されていることがあるため、
+    # 「店名（表記ゆれを正規化）+ 開始日時」が一致し、かつタイトルが十分似ている行は
+    # 同一イベントとみなし、情報量（埋まっているフィールド数）が多い方を残す。
+    def dedupe_tournaments(tournaments)
+      tournaments.group_by { |t| dedupe_key(t[:data]) }.flat_map do |key, group|
+        next group if key.nil? || group.size == 1
+
+        dedupe_group(group)
+      end
+    end
+
+    # 同じ店・同じ開始時刻でも別イベントのことがある（リーグ戦の同時開催など）ため、
+    # タイトルが似ているものだけをまとめる
+    def dedupe_group(group)
+      clusters = []
+      group.each do |t|
+        cluster = clusters.find { |c| same_title?(c.first[:data], t[:data]) }
+        cluster ? cluster << t : clusters << [t]
+      end
+
+      clusters.map do |cluster|
+        best = cluster.max_by { |t| completeness_score(t[:data]) }
+        (cluster - [best]).each do |t|
+          log "Duplicate dropped: #{File.basename(t[:res_file])} " \
+              "(#{t[:data]['shop_name']} #{t[:data]['start_time']}) " \
+              "-> kept #{File.basename(best[:res_file])}"
+        end
+        best
+      end
+    end
+
+    # 店名・開始日時が欠けている場合はnilを返し、重複排除の対象外とする
+    def dedupe_key(data)
+      shop = normalize_shop_name(data["shop_name"])
+      start_time = data["start_time"].to_s.strip
+      return nil if shop.empty? || start_time.empty?
+
+      [shop, start_time]
+    end
+
+    # 全角英数字→半角、空白除去、小文字化してソース間の表記ゆれを吸収する
+    def normalize_shop_name(name)
+      name.to_s
+          .tr("０-９Ａ-Ｚａ-ｚ", "0-9A-Za-z")
+          .gsub(/[[:space:]]/, "")
+          .downcase
+    end
+
+    TITLE_SIMILARITY_THRESHOLD = 0.5
+
+    def same_title?(a, b)
+      ta = normalize_title(a["title"])
+      tb = normalize_title(b["title"])
+      # タイトル不明の場合は店名・開始時刻の一致を信用してまとめる
+      return true if ta.empty? || tb.empty?
+
+      bigram_similarity(ta, tb) >= TITLE_SIMILARITY_THRESHOLD
+    end
+
+    # 記号・空白を除去して文字種を揃える（「50,000保証」と「50000保証」を一致させる）
+    def normalize_title(title)
+      title.to_s
+           .tr("０-９Ａ-Ｚａ-ｚ", "0-9A-Za-z")
+           .downcase
+           .gsub(/[^[:alnum:]]/, "")
+    end
+
+    # 文字バイグラムのDice係数（0.0〜1.0）
+    def bigram_similarity(a, b)
+      return a == b ? 1.0 : 0.0 if a.size < 2 || b.size < 2
+
+      bigrams_a = a.chars.each_cons(2).map(&:join).uniq
+      bigrams_b = b.chars.each_cons(2).map(&:join).uniq
+      2.0 * (bigrams_a & bigrams_b).size / (bigrams_a.size + bigrams_b.size)
+    end
+
+    def completeness_score(data)
+      %w[address title late_registration_time entry_fee add_on
+         prize_list total_prize guaranteed_amount prize_text].count do |field|
+        value = data[field]
+        value.respond_to?(:empty?) ? !value.empty? : !value.nil?
+      end
     end
 
     def invalid_reason(data)
