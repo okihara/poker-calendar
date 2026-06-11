@@ -10,6 +10,8 @@ module PokerCalendar
     include Loggable
 
     OPENAI_API_URL = URI('https://api.openai.com/v1/chat/completions')
+    # nanoはプライズ抽出ルールを守れず存在しない順位の賞金を生成することがあるためminiを既定にする
+    MODEL = ENV.fetch('OPENAI_MODEL', 'gpt-4.1-mini')
 
     def initialize(api_key, data_dir)
       @api_key = api_key
@@ -58,8 +60,8 @@ module PokerCalendar
     def analyze(info_html, year)
       year_instruction = "※日付の年は必ず#{year}年としてください。\n\n"
       body = {
-        model: "gpt-4.1-nano",
-        response_format: { type: "json_object" },
+        model: MODEL,
+        response_format: RESPONSE_FORMAT,
         messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
         temperature: 0,
       }
@@ -79,15 +81,63 @@ module PokerCalendar
       parsed.dig("choices", 0, "message", "content")
     end
 
+    # Structured Outputsで型を強制する（prize_listに文字列が混ざる等の事故を防ぐ）
+    RESPONSE_FORMAT = {
+      type: "json_schema",
+      json_schema: {
+        name: "tournament_info",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            shop_name: { type: "string" },
+            address: { type: "string" },
+            area: { type: "string" },
+            title: { type: "string" },
+            date: { type: "string" },
+            start_time: { type: "string" },
+            late_registration_time: { type: ["string", "null"] },
+            late_reentry_time: { type: ["string", "null"] },
+            entry_fee: { type: "integer" },
+            reentry_fee: { type: "integer" },
+            add_on: { type: "integer" },
+            prize_list: { type: "array", items: { type: "integer" } },
+            total_prize: { type: "integer" },
+            prize_text: { type: "string" },
+            guaranteed_amount: { type: "integer" },
+            is_jopt_prize: { type: "boolean" },
+            is_coin_prize: { type: "boolean" },
+          },
+          required: %w[
+            shop_name address area title date start_time
+            late_registration_time late_reentry_time
+            entry_fee reentry_fee add_on
+            prize_list total_prize prize_text guaranteed_amount
+            is_jopt_prize is_coin_prize
+          ],
+        },
+      },
+    }.freeze
+
     PROMPT = <<~PROMPT
       以下はポーカールームのトーナメント情報です
 
      【重要な注意事項】
       - 1つのトーナメント情報のみを抽出してください
       - 複数のトーナメントが並列で記載されている場合は、最初の1つだけを抽出してください
-      - prize_listには順位ごとの賞金を個別に記載してください
       - 1日に複数回開催される場合も、1つのトーナメントとして扱ってください
       - json 形式で出力してください
+
+     【プライズ抽出ルール】
+      - prize_list: 順位ごとの賞金額を1位から順に整数で並べる。円・コイン・プル・ポイントなど数値で金額が明示されたものだけを対象とする
+        - チケット・物品・割引券・無料券・ドリンク券など金額が書かれていないプライズはprize_listに入れない（0や文字列も入れない）
+        - 「参加人数×1000」のような変動式の賞金も入れない
+        - 金額が明示された賞金が1つもない場合は空配列 [] にする
+      - total_prize: ページに賞金総額が明記されていればその数値。明記がなければprize_listの合計。どちらも無ければ0
+        - 「最大」「〜相当」「保証」の金額はtotal_prizeではなく、保証額ならguaranteed_amountに入れる
+      - prize_text: プライズ内容の簡潔な要約（チケット・物品など金額が無いものもここに必ず書く）。記載が無ければ空文字
+      - guaranteed_amount: プライズの保証額（「◯◯保証」「GTD」等）。無ければ0
 
       抽出フィールド:
       - shop_name as string
