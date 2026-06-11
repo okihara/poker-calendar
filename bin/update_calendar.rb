@@ -39,30 +39,42 @@ def process_date(date, api_key)
 end
 
 def main
+  # --csv-only: スクレイピング・AI解析を行わず、既存JSONからCSV生成とアップロードのみ実行
+  csv_only = ARGV.include?('--csv-only')
+
   # 実行前にtest.logを削除
   File.delete('test.log') if File.exist?('test.log')
 
   today = Time.now
   yesterday = today - (24 * 60 * 60)  # 1日前
   tomorrow = today + (24 * 60 * 60)  # 1日後
-  api_key = File.read(".env").strip
 
-  # 昨日はCSV作成のみ（スクレイピング・AI解析は処理済み）
   csv_files = []
-  csv_files << generate_csv(yesterday)
+  if csv_only
+    [yesterday, today, tomorrow].each do |date|
+      csv_files << generate_csv(date)
+    end
+  else
+    api_key = File.read(".env").strip
 
-  # 今日と明日はスクレイピングからフル処理
-  [today, tomorrow].each do |date|
-    csv_files << process_date(date, api_key)
+    # 昨日はCSV作成のみ（スクレイピング・AI解析は処理済み）
+    csv_files << generate_csv(yesterday)
+
+    # 今日と明日はスクレイピングからフル処理
+    [today, tomorrow].each do |date|
+      csv_files << process_date(date, api_key)
+    end
   end
 
   # Google Spreadsheetへのアップロード（複数CSVファイル）
   uploader = GoogleSpreadsheetUploader.new(Settings::CONFIG_PATH)
   uploader.upload_csv(csv_files, Settings::SPREADSHEET_KEY)
 
-  # 古いデータのクリーンアップ
-  cleaner = DataCleaner.new(Settings::DATA_DIR, Settings::DATA_RETENTION_DAYS)
-  cleaner.clean
+  # 古いデータのクリーンアップ（csv-only時はスキップ）
+  unless csv_only
+    cleaner = DataCleaner.new(Settings::DATA_DIR, Settings::DATA_RETENTION_DAYS)
+    cleaner.clean
+  end
 end
 
 main if __FILE__ == $0
