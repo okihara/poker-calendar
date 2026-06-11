@@ -61,7 +61,7 @@ module PokerCalendar
         model: "gpt-4.1-nano",
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
-        temperature: 0.7,
+        temperature: 0,
       }
 
       http = Net::HTTP.new(OPENAI_API_URL.host, OPENAI_API_URL.port)
@@ -93,7 +93,7 @@ module PokerCalendar
       - shop_name as string
       - shop_name as string
       - address as string
-      - area as string(渋谷,六本木,新宿,etc...)
+      - area as string(必ず住所(address)から判定すること。店名や雰囲気で推測しない。例: 新宿,渋谷,六本木,新橋,赤坂,秋葉原,上野,湯島,池袋,etc... 住所が不明な場合のみ店名から判定し、それも不明なら空文字)
       - title as string
       - date as string(YYYY/MM/DD)
       - start_time as string(YYYY/MM/DD HH:MM)

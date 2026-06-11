@@ -10,6 +10,47 @@ module PokerCalendar
     PG_BASE_URL = 'https://pokerguild.jp'.freeze
     PF_BASE_URL = 'https://pokerfans.jp'.freeze
 
+    # AIが返すareaは誤判定がある（新橋の店が新宿になる等）ため、
+    # 住所・店名にエリア名が含まれていればそちらを優先する。
+    # 部分一致で判定するので、紛らわしいもの（浅草橋 vs 浅草）は先に置く。
+    AREA_RULES = [
+      ['浅草橋', '浅草橋'],
+      ['歌舞伎町', '新宿'],
+      ['新宿', '新宿'],
+      ['新橋', '新橋'],
+      ['渋谷', '渋谷'],
+      ['六本木', '六本木'],
+      ['西麻布', '西麻布'],
+      ['赤坂', '赤坂'],
+      ['秋葉原', '秋葉原'],
+      ['上野', '上野'],
+      ['湯島', '湯島'],
+      ['池袋', '池袋'],
+      ['銀座', '銀座'],
+      ['五反田', '五反田'],
+      ['恵比寿', '恵比寿'],
+      ['人形町', '人形町'],
+      ['浅草', '浅草'],
+      ['蒲田', '蒲田'],
+      ['大森', '大森'],
+      ['目黒', '目黒'],
+      ['下北沢', '下北沢'],
+      ['中野', '中野'],
+      ['練馬', '練馬'],
+      ['吉祥寺', '吉祥寺'],
+      ['金町', '金町'],
+      ['葛西', '葛西'],
+      ['国分寺', '国分寺'],
+      ['立川', '立川'],
+      ['八王子', '八王子'],
+      ['町田', '町田'],
+      ['宇都宮', '宇都宮'],
+      ['名古屋', '名古屋'],
+      ['京都', '京都'],
+      ['大阪', '大阪'],
+      ['金沢', '金沢'],
+    ].freeze
+
     def initialize(data_dir)
       @data_dir = data_dir
     end
@@ -74,12 +115,16 @@ module PokerCalendar
       has_saidai = title.include?("最大")
 
       late_time = fix_late_registration_time(data["start_time"], data["late_registration_time"])
+      area = normalize_area(data)
+      if area != data["area"]
+        log "Area corrected: #{data['shop_name']} (#{data['area']} -> #{area})"
+      end
 
       csv << [
         index + 1,
         data["shop_name"],
         data["address"],
-        data["area"],
+        area,
         data["title"],
         data["date"],
         data["start_time"],
@@ -92,6 +137,19 @@ module PokerCalendar
         has_saidai ? 0 : data["prize_text"],
         make_tournament_link(res_file),
       ]
+    end
+
+    # 住所→店名の順でエリア名を探し、見つかればAIのareaより優先する
+    def normalize_area(data)
+      [data["address"], data["shop_name"]].each do |text|
+        next if text.nil? || text.empty?
+        # 「東京都」が「京都」に部分一致してしまうので先に除去
+        text = text.to_s.gsub("東京都", "")
+        AREA_RULES.each do |keyword, area|
+          return area if text.include?(keyword)
+        end
+      end
+      data["area"]
     end
 
     def fix_late_registration_time(start_time_str, late_time_str)
