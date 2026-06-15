@@ -36,6 +36,14 @@ module PokerCalendar
 
     private
 
+    # XML 1.0 で無効な制御文字を除去する
+    # 許可されるのは Tab(0x09)/LF(0x0A)/CR(0x0D) と 0x20 以上の文字のみ
+    def sanitize_cell(cell)
+      return cell unless cell.is_a?(String)
+
+      cell.gsub(/[^\u{9}\u{A}\u{D}\u{20}-\u{D7FF}\u{E000}-\u{FFFD}\u{10000}-\u{10FFFF}]/, '')
+    end
+
     def clear_worksheet(worksheet)
       worksheet.rows.each_with_index do |_, row_index|
         (1..worksheet.num_cols).each do |col_index|
@@ -66,7 +74,7 @@ module PokerCalendar
 
           log "Uploading row #{current_row} #{row[3]} #{row[14]}"
           row.each_with_index do |cell, col_index|
-            worksheet[current_row, col_index + 1] = cell
+            worksheet[current_row, col_index + 1] = sanitize_cell(cell)
           end
           current_row += 1
         end
