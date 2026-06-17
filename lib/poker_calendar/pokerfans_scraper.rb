@@ -8,6 +8,8 @@ module PokerCalendar
     include Loggable
 
     BASE_URL = 'https://pokerfans.jp'
+    # 素の curl UA だとボット判定されIPブロックされやすいため、ブラウザ相当のUAを付ける
+    USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
     def initialize(data_dir, date)
       @data_dir = data_dir
@@ -60,7 +62,7 @@ module PokerCalendar
 
     def fetch_daily_page(page = 0)
       url = "#{BASE_URL}/?startDate=#{@date_str}&weekly=false&prize=&clubId=&location=%E6%9D%B1%E4%BA%AC%E9%83%BD&withEndTime=false&applyEndTime=&size=50&page=#{page}"
-      html = `curl -L --compressed -s -X GET "#{url}"`
+      html = `curl -L --compressed -s -A "#{USER_AGENT}" -X GET "#{url}"`
       html.force_encoding('UTF-8')
     end
 
@@ -105,7 +107,7 @@ module PokerCalendar
 
       sleep(2)
       url = "#{BASE_URL}/events/#{event_id}"
-      html = `curl -L --compressed -s -X GET "#{url}"`
+      html = `curl -L --compressed -s -A "#{USER_AGENT}" -X GET "#{url}"`
 
       # エラーページの場合はスキップ
       if html.include?('Error | Poker Fans')
