@@ -11,10 +11,14 @@ module PokerCalendar
     # 素の curl UA だとボット判定されIPブロックされやすいため、ブラウザ相当のUAを付ける
     USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
-    def initialize(data_dir, date)
+    # デフォルトの各フェッチ間隔（秒）。呼び出し側で上書き可能。
+    DEFAULT_FETCH_INTERVAL = 2
+
+    def initialize(data_dir, date, fetch_interval: DEFAULT_FETCH_INTERVAL)
       @data_dir = data_dir
       @date = date
       @date_str = date.strftime("%Y/%m/%d")
+      @fetch_interval = fetch_interval
     end
 
     def fetch_daily_tournaments
@@ -34,7 +38,7 @@ module PokerCalendar
         break if events.size < 50  # 50件未満なら最後のページ
 
         page += 1
-        sleep(2)
+        sleep(@fetch_interval)
       end
 
       all_events.uniq { |e| e[:id] }
@@ -105,7 +109,7 @@ module PokerCalendar
         return
       end
 
-      sleep(2)
+      sleep(@fetch_interval)
       url = "#{BASE_URL}/events/#{event_id}"
       html = `curl -L --compressed -s -A "#{USER_AGENT}" -X GET "#{url}"`
 
@@ -150,7 +154,11 @@ if __FILE__ == $0
   require_relative '../../config/settings'
 
   date = ARGV[0] ? Time.parse(ARGV[0]) : Time.now
-  scraper = PokerCalendar::PokerfansScraper.new(PokerCalendar::Settings::DATA_DIR, date)
+  scraper = PokerCalendar::PokerfansScraper.new(
+    PokerCalendar::Settings::DATA_DIR,
+    date,
+    fetch_interval: PokerCalendar::Settings::POKERFANS_FETCH_INTERVAL
+  )
 
   puts "Fetching pokerfans events for #{date.strftime('%Y-%m-%d')}..."
   event_ids = scraper.fetch_daily_tournaments
