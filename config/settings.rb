@@ -7,6 +7,6 @@ module PokerCalendar
 
     # pokerfans スクレイピングで各フェッチの間隔（秒）。
     # IPブロックを避けたい場合はこの値を大きくする。
-    POKERFANS_FETCH_INTERVAL = 2
+    POKERFANS_FETCH_INTERVAL = 10
   end
 end
