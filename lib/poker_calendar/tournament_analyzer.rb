@@ -4,6 +4,7 @@ require 'json'
 require 'net/http'
 require 'uri'
 require_relative './loggable'
+require_relative './html_cleaner'
 
 module PokerCalendar
   class TournamentAnalyzer
@@ -58,11 +59,13 @@ module PokerCalendar
     end
 
     def analyze(info_html, year)
+      # LLMに渡す前にノイズタグ・属性を除去してトークンを削減し、解析精度を上げる
+      cleaned_html = HtmlCleaner.clean(info_html)
       year_instruction = "※日付の年は必ず#{year}年としてください。\n\n"
       body = {
         model: MODEL,
         response_format: RESPONSE_FORMAT,
-        messages: [{ role: "user", content: year_instruction + PROMPT + info_html }],
+        messages: [{ role: "user", content: year_instruction + PROMPT + cleaned_html }],
         temperature: 0,
       }
 
