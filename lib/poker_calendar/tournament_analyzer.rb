@@ -10,9 +10,12 @@ module PokerCalendar
   class TournamentAnalyzer
     include Loggable
 
-    OPENAI_API_URL = URI('https://api.openai.com/v1/chat/completions')
-    # nanoはプライズ抽出ルールを守れず存在しない順位の賞金を生成することがあるためminiを既定にする
-    MODEL = ENV.fetch('OPENAI_MODEL', 'gpt-4.1-mini')
+    # OpenAI互換のエンドポイント。ローカルLLM(LM Studio)を既定にする。
+    # 例: LM Studio -> http://localhost:1234/v1/chat/completions
+    #     OpenAI    -> https://api.openai.com/v1/chat/completions
+    API_URL = URI(ENV.fetch('LLM_API_URL', 'http://localhost:1234/v1/chat/completions'))
+    # LM Studioではロード中のモデル名を指定する（未指定でもロード済みモデルが使われることが多い）
+    MODEL = ENV.fetch('LLM_MODEL', ENV.fetch('OPENAI_MODEL', 'local-model'))
 
     def initialize(api_key, data_dir)
       @api_key = api_key
@@ -64,24 +67,41 @@ module PokerCalendar
       year_instruction = "※日付の年は必ず#{year}年としてください。\n\n"
       body = {
         model: MODEL,
-        response_format: RESPONSE_FORMAT,
+        response_format: response_format,
         messages: [{ role: "user", content: year_instruction + PROMPT + cleaned_html }],
         temperature: 0,
       }
 
-      http = Net::HTTP.new(OPENAI_API_URL.host, OPENAI_API_URL.port)
-      http.use_ssl = true
+      http = Net::HTTP.new(API_URL.host, API_URL.port)
+      http.use_ssl = (API_URL.scheme == 'https')
 
-      request = Net::HTTP::Post.new(OPENAI_API_URL)
-      request['Authorization'] = "Bearer #{@api_key}"
+      request = Net::HTTP::Post.new(API_URL)
+      # ローカルLLMはАPIキー不要。値がある場合のみAuthorizationヘッダを付与する。
+      request['Authorization'] = "Bearer #{@api_key}" unless @api_key.to_s.strip.empty?
       request['Content-Type'] = 'application/json'
       request.body = JSON.generate(body)
 
       response = http.request(request)
-      raise "OpenAI API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+      raise "LLM API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
       parsed = JSON.parse(response.body)
-      parsed.dig("choices", 0, "message", "content")
+      message = parsed.dig("choices", 0, "message") || {}
+      content = message["content"].to_s
+      # 推論モデル(thinking on)はJSON本体をcontentではなくreasoning_contentに出すことがある
+      content = message["reasoning_content"].to_s if content.strip.empty?
+      content
+    end
+
+    # response_formatの選択。LLM_RESPONSE_FORMATで切替可能。
+    #   json_schema (既定): Structured Outputsで型を強制（OpenAI / LM Studioが対応）
+    #   json_object       : JSONの妥当性のみ保証（型強制なし）
+    #   text              : 素のテキスト（プロンプトのjson指示に依存）
+    def response_format
+      case ENV.fetch('LLM_RESPONSE_FORMAT', 'json_schema')
+      when 'json_object' then { type: "json_object" }
+      when 'text'        then { type: "text" }
+      else RESPONSE_FORMAT
+      end
     end
 
     # Structured Outputsで型を強制する（prize_listに文字列が混ざる等の事故を防ぐ）
@@ -178,7 +198,7 @@ if __FILE__ == $0
     exit 1
   end
 
-  api_key = File.read(".env").strip
+  api_key = File.exist?(".env") ? File.read(".env").strip : ""
   analyzer = PokerCalendar::TournamentAnalyzer.new(api_key, File.dirname(file))
 
   html = File.read(file, encoding: 'utf-8')

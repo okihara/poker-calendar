@@ -61,7 +61,8 @@ def main
       csv_files << generate_csv(date)
     end
   else
-    api_key = File.read(".env").strip
+    # ローカルLLM(LM Studio)はAPIキー不要。.envがあれば読む。
+    api_key = File.exist?(".env") ? File.read(".env").strip : ""
 
     # 昨日はCSV作成のみ（スクレイピング・AI解析は処理済み）
     csv_files << generate_csv(yesterday)
