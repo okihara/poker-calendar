@@ -65,6 +65,10 @@ pokerguild.jp / pokerfans.jp
         │
         ▼
   TournamentScraper / PokerfansScraper   ... HTML取得 → data/*.txt
+                                             （pokerfans は robots.txt で /events/ が
+                                              Disallow のため一覧ページのみ取得し、
+                                              一覧に載る範囲の情報だけを保存する。
+                                              プライズ内訳は取得できない）
         │
         ▼
   TournamentAnalyzer                     ... OpenAI API (GPT-4o-mini) → data/res-*.json
@@ -115,6 +119,6 @@ pokerguild.jp / pokerfans.jp
 | パターン | 内容 |
 |---------|------|
 | `pg-YYYY-MM-DD-tourney-{id}.txt` | pokerguild.jp の HTML |
-| `pf-YYYY-MM-DD-event-{id}.txt` | pokerfans.jp の HTML |
+| `pf-YYYY-MM-DD-event-{id}.txt` | pokerfans.jp の一覧から整形したイベント情報 |
 | `res-{上記ファイル名}.json` | OpenAI API レスポンス |
 | `tourney_info_YYYY-MM-DD.csv` | 生成された CSV |
