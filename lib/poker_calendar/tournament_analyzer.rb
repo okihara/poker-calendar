@@ -17,6 +17,12 @@ module PokerCalendar
     # LM Studioではロード中のモデル名を指定する（未指定でもロード済みモデルが使われることが多い）
     MODEL = ENV.fetch('LLM_MODEL', ENV.fetch('OPENAI_MODEL', 'local-model'))
 
+    # HTTPタイムアウトとリトライ回数（暴走生成や一過性のネットワークエラー対策）。
+    # 既定のread_timeout(60s)ではモデルが生成を止められない時に長時間ハングするため明示する。
+    OPEN_TIMEOUT = Integer(ENV.fetch('LLM_OPEN_TIMEOUT', '15'))
+    READ_TIMEOUT = Integer(ENV.fetch('LLM_READ_TIMEOUT', '120'))
+    MAX_RETRIES  = Integer(ENV.fetch('LLM_MAX_RETRIES', '2'))
+
     def initialize(api_key, data_dir)
       @api_key = api_key
       @data_dir = data_dir
@@ -29,12 +35,27 @@ module PokerCalendar
       info_files = Dir.glob(File.join(@data_dir, "*-#{date_str}-*.txt"))
       log "Analyzing #{info_files.size} tournament files for #{date_str}"
 
+      # 未解析のファイルが1件でもある時だけ、LLMが応答する状態か事前確認する。
+      # モデル未ロードのまま全件エラー→空データで本番を上書きする事故を防ぐ。
+      ensure_llm_ready! if info_files.any? { |f| !File.exist?(make_response_file_path(f)) }
+
       info_files.each_with_index do |info_file, index|
         process_tournament(info_file, index, info_files.size, year)
       end
     end
 
     private
+
+    # 極小のcompletionを投げてモデルがロード済みか確認する。
+    # /v1/models はダウンロード済みモデルも返すため、ロード状態の判定には使えない。
+    def ensure_llm_ready!
+      post_chat({ model: MODEL, messages: [{ role: "user", content: "ping" }],
+                  max_tokens: 1, temperature: 0 })
+      log "LLM ready check: OK (#{MODEL})"
+    rescue => e
+      raise "ローカルLLMが利用できません（モデル未ロードの可能性）。" \
+            "LM Studioでモデルをロードしてから再実行してください: #{e.message}"
+    end
 
     def process_tournament(info_file, index, total, year)
       res_file_path = make_response_file_path(info_file)
@@ -45,13 +66,19 @@ module PokerCalendar
 
       info_html = File.read(info_file, encoding: 'utf-8')
 
+      attempts = 0
       begin
+        attempts += 1
         sleep(0.7)
         log "Analyzing tournament #{index + 1}/#{total}: #{File.basename(info_file)}"
         response = analyze(info_html, year)
         File.write(res_file_path, response, encoding: 'UTF-8')
       rescue => e
-        log "Error analyzing tournament: #{e.message}"
+        if attempts <= MAX_RETRIES
+          log "Retry #{attempts}/#{MAX_RETRIES} for #{File.basename(info_file)}: #{e.message}"
+          retry
+        end
+        log "Error analyzing tournament (#{File.basename(info_file)}): #{e.message}"
       end
     end
 
@@ -72,11 +99,23 @@ module PokerCalendar
         temperature: 0,
       }
 
+      parsed = post_chat(body)
+      message = parsed.dig("choices", 0, "message") || {}
+      content = message["content"].to_s
+      # 推論モデル(thinking on)はJSON本体をcontentではなくreasoning_contentに出すことがある
+      content = message["reasoning_content"].to_s if content.strip.empty?
+      content
+    end
+
+    # Chat Completions APIを叩いてパース済みレスポンスを返す。タイムアウトは明示する。
+    def post_chat(body)
       http = Net::HTTP.new(API_URL.host, API_URL.port)
       http.use_ssl = (API_URL.scheme == 'https')
+      http.open_timeout = OPEN_TIMEOUT
+      http.read_timeout = READ_TIMEOUT
 
       request = Net::HTTP::Post.new(API_URL)
-      # ローカルLLMはАPIキー不要。値がある場合のみAuthorizationヘッダを付与する。
+      # ローカルLLMはAPIキー不要。値がある場合のみAuthorizationヘッダを付与する。
       request['Authorization'] = "Bearer #{@api_key}" unless @api_key.to_s.strip.empty?
       request['Content-Type'] = 'application/json'
       request.body = JSON.generate(body)
@@ -84,12 +123,7 @@ module PokerCalendar
       response = http.request(request)
       raise "LLM API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
-      parsed = JSON.parse(response.body)
-      message = parsed.dig("choices", 0, "message") || {}
-      content = message["content"].to_s
-      # 推論モデル(thinking on)はJSON本体をcontentではなくreasoning_contentに出すことがある
-      content = message["reasoning_content"].to_s if content.strip.empty?
-      content
+      JSON.parse(response.body)
     end
 
     # response_formatの選択。LLM_RESPONSE_FORMATで切替可能。

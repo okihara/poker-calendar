@@ -3,3 +3,5 @@ data/*
 .DS_Store
 config.json
 test.log
+.bundle/
+vendor/

@@ -13,6 +13,13 @@ module PokerCalendar
     def upload_csv(csv_files, spreadsheet_key)
       csv_files = Array(csv_files)  # 単一ファイルでも配列でも対応
       log "Uploading #{csv_files.size} CSV file(s) to Google Spreadsheet..."
+
+      # データ行が0件なら、既存シートをクリア・上書きしない（空データ事故で本番を消さない）
+      data_rows = count_data_rows(csv_files)
+      if data_rows.zero?
+        raise "アップロード対象のデータ行が0件のため、スプレッドシートの上書きを中止しました。"
+      end
+
       begin
         spreadsheet = @session.spreadsheet_by_key(spreadsheet_key)
         worksheet = spreadsheet.worksheets.first
@@ -35,6 +42,14 @@ module PokerCalendar
     end
 
     private
+
+    # 全CSVのデータ行数（各ファイルのヘッダー1行を除いた合計）
+    def count_data_rows(csv_files)
+      csv_files.select { |f| File.exist?(f) }.sum do |f|
+        rows = CSV.read(f, encoding: 'UTF-8').size
+        rows.positive? ? rows - 1 : 0
+      end
+    end
 
     # XML 1.0 で無効な制御文字を除去する
     # 許可されるのは Tab(0x09)/LF(0x0A)/CR(0x0D) と 0x20 以上の文字のみ

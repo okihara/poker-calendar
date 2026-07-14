@@ -44,6 +44,18 @@ def process_date(date, api_key)
   generate_csv(date)
 end
 
+# スクレイプ済みtxtに対する解析(res)の充足率。閾値を下回る日があればアップロードを中止する。
+# モデル未ロード等で解析が全滅→空データで本番を上書きする事故を防ぐ。
+COVERAGE_THRESHOLD = 0.5
+
+def analysis_coverage_ok?(date)
+  date_str = date.strftime("%Y-%m-%d")
+  txt = Dir.glob(File.join(Settings::DATA_DIR, "*-#{date_str}-*.txt")).size
+  res = Dir.glob(File.join(Settings::DATA_DIR, "res-*-#{date_str}-*.json")).size
+  return true if txt.zero?  # スクレイプ0件の日は判定対象外
+  res.to_f / txt >= COVERAGE_THRESHOLD
+end
+
 def main
   # --csv-only: スクレイピング・AI解析を行わず、既存JSONからCSV生成とアップロードのみ実行
   csv_only = ARGV.include?('--csv-only')
@@ -70,6 +82,16 @@ def main
     # 今日と明日はスクレイピングからフル処理
     [today, tomorrow].each do |date|
       csv_files << process_date(date, api_key)
+    end
+  end
+
+  # フル処理した日の解析が著しく不足していればアップロードを中止する（空データ上書き防止）
+  unless csv_only
+    bad_dates = [today, tomorrow].reject { |date| analysis_coverage_ok?(date) }
+    unless bad_dates.empty?
+      dates = bad_dates.map { |d| d.strftime("%Y-%m-%d") }.join(", ")
+      abort "AI解析結果が不足しているためアップロードを中止します（対象日: #{dates}）。" \
+            "ローカルLLMのモデルがロードされているか確認してください。"
     end
   end
 
