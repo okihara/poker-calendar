@@ -25,16 +25,17 @@ def process_date(date, api_key)
   pg_tournaments = pg_scraper.fetch_daily_tournaments
   pg_scraper.fetch_tournaments(pg_tournaments)
 
-  # pokerfans スクレイピングは一時停止中（IPブロック対応）。
-  # 再開する場合は以下のコメントを外す。
-  # フェッチ間隔は Settings::POKERFANS_FETCH_INTERVAL で調整可能。
-  # pf_scraper = PokerfansScraper.new(
-  #   Settings::DATA_DIR,
-  #   date,
-  #   fetch_interval: Settings::POKERFANS_FETCH_INTERVAL
-  # )
-  # pf_events = pf_scraper.fetch_daily_tournaments
-  # pf_scraper.fetch_tournaments(pf_events)
+  # pokerfans スクレイピングの実行。
+  # robots.txt で /events/ が Disallow のため一覧ページのみ取得し、
+  # 一覧に載っている情報だけをイベント情報として保存する。
+  # 一覧の取得間隔は Settings::POKERFANS_FETCH_INTERVAL で調整可能。
+  pf_scraper = PokerfansScraper.new(
+    Settings::DATA_DIR,
+    date,
+    fetch_interval: Settings::POKERFANS_FETCH_INTERVAL
+  )
+  pf_events = pf_scraper.fetch_daily_tournaments
+  pf_scraper.save_tournaments(pf_events)
 
   # AI解析の実行（該当日付の全 .txt ファイルを処理）
   analyzer = TournamentAnalyzer.new(api_key, Settings::DATA_DIR)
