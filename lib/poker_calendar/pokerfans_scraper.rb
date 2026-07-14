@@ -105,9 +105,10 @@ module PokerCalendar
         return
       end
 
-      # タイトルに「コイン」または「coin」が含まれていない場合はスキップ
-      unless title =~ /コイン|coin|サテ|現金|協賛/i
-        log "SKIP: No coin keyword - #{title}"
+      # 対象キーワードを含まないタイトルはスキップ。
+      # コイン系・サテ・現金・協賛に加え、保証トナメ(GTD)も取り込む。
+      unless title =~ /コイン|coin|サテ|現金|協賛|保証|トナメ|GTD/i
+        log "SKIP: No target keyword - #{title}"
         return
       end
 
