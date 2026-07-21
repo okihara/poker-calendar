@@ -77,8 +77,27 @@ pokerguild.jp / pokerfans.jp
   TournamentParser                       ... JSON → CSV (data/tourney_info_*.csv)
         │
         ▼
-  GoogleSpreadsheetUploader              ... CSV → Google Spreadsheet
+  GoogleSpreadsheetUploader              ... CSV → Google Spreadsheet（データ確認用）
+        │
+        ▼
+  VercelBlobUploader                     ... CSV → JSON → Vercel Blob（フロントエンドの読み込み元）
 ```
+
+### Vercel Blob へのアップロード
+
+フロントエンド（poker-calender-front）の読み込み高速化のため、CSV と同内容の JSON を
+Vercel Blob（`tournaments.json`）にアップロードする。スプレッドシートへのアップロードは
+データ確認用として並行して継続する。
+
+セットアップ:
+
+1. Vercel ダッシュボード → Storage → Blob でストアを作成
+2. Read/Write トークンを発行し、以下のいずれかで設定
+   - 環境変数 `BLOB_READ_WRITE_TOKEN`
+   - リポジトリ直下に `.vercel_blob_token` ファイルを置く（gitignore 済み）
+
+トークン未設定の場合は Blob アップロードをスキップし、従来どおりスプレッドシートのみ更新する。
+初回アップロード後にログに出力される Blob URL を、フロントエンドの `app.js` の `JSON_URL` に設定する。
 
 ### 主要ファイル
 
@@ -90,6 +109,7 @@ pokerguild.jp / pokerfans.jp
 | [lib/poker_calendar/tournament_analyzer.rb](lib/poker_calendar/tournament_analyzer.rb) | OpenAI API による構造化データ抽出 |
 | [lib/poker_calendar/tournament_parser.rb](lib/poker_calendar/tournament_parser.rb) | JSON → CSV 変換 |
 | [lib/poker_calendar/google_spreadsheet_uploader.rb](lib/poker_calendar/google_spreadsheet_uploader.rb) | Google Spreadsheet アップロード |
+| [lib/poker_calendar/vercel_blob_uploader.rb](lib/poker_calendar/vercel_blob_uploader.rb) | Vercel Blob へ JSON アップロード |
 | [config/settings.rb](config/settings.rb) | 定数定義 |
 
 ### 抽出フィールド

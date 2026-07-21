@@ -3,6 +3,7 @@ require_relative '../lib/poker_calendar/pokerfans_scraper'
 require_relative '../lib/poker_calendar/tournament_analyzer'
 require_relative '../lib/poker_calendar/tournament_parser'
 require_relative '../lib/poker_calendar/google_spreadsheet_uploader'
+require_relative '../lib/poker_calendar/vercel_blob_uploader'
 require_relative '../lib/poker_calendar/data_cleaner'
 require_relative '../config/settings'
 
@@ -57,6 +58,27 @@ def analysis_coverage_ok?(date)
   res.to_f / txt >= COVERAGE_THRESHOLD
 end
 
+def vercel_blob_token
+  token = ENV["BLOB_READ_WRITE_TOKEN"].to_s.strip
+  return token unless token.empty?
+  return File.read(Settings::VERCEL_BLOB_TOKEN_PATH).strip if File.exist?(Settings::VERCEL_BLOB_TOKEN_PATH)
+
+  nil
+end
+
+def upload_to_vercel_blob(csv_files)
+  token = vercel_blob_token
+  if token.nil? || token.empty?
+    # 未設定でもスプレッドシート運用は継続できるよう、エラーにせずスキップする
+    puts "Vercel Blobトークンが未設定のためスキップします" \
+         "（環境変数 BLOB_READ_WRITE_TOKEN か #{Settings::VERCEL_BLOB_TOKEN_PATH} で設定）"
+    return
+  end
+
+  blob_uploader = VercelBlobUploader.new(token)
+  blob_uploader.upload_csv_as_json(csv_files, Settings::VERCEL_BLOB_PATHNAME)
+end
+
 def main
   # --csv-only: スクレイピング・AI解析を行わず、既存JSONからCSV生成とアップロードのみ実行
   csv_only = ARGV.include?('--csv-only')
@@ -97,8 +119,12 @@ def main
   end
 
   # Google Spreadsheetへのアップロード（複数CSVファイル）
+  # データ確認用としてBlob移行後も残す
   uploader = GoogleSpreadsheetUploader.new(Settings::CONFIG_PATH)
   uploader.upload_csv(csv_files, Settings::SPREADSHEET_KEY)
+
+  # Vercel Blobへのアップロード（フロントエンドの読み込み元）
+  upload_to_vercel_blob(csv_files)
 
   # 古いデータのクリーンアップ（csv-only時はスキップ）
   unless csv_only

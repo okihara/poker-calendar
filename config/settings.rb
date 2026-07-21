@@ -2,6 +2,11 @@ module PokerCalendar
   module Settings
     SPREADSHEET_KEY = "17qhppvCNRnIX2wagimoAl6YHmaTaC0Re3ndwToletc0"
     CONFIG_PATH = "config.json"
+
+    # Vercel Blob 連携。トークンは環境変数 BLOB_READ_WRITE_TOKEN か、
+    # このファイルパスに置いたトークン文字列のどちらかで渡す（ファイルはgitignore済み）
+    VERCEL_BLOB_TOKEN_PATH = ".vercel_blob_token"
+    VERCEL_BLOB_PATHNAME = "tournaments.json"
     DATA_DIR = "./data"
     DATA_RETENTION_DAYS = 7
 
