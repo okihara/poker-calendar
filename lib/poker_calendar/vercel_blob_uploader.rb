@@ -53,7 +53,8 @@ module PokerCalendar
       uri = URI("#{API_ORIGIN}/#{pathname}")
       req = Net::HTTP::Put.new(uri)
       req['Authorization'] = "Bearer #{@token}"
-      req['x-api-version'] = '11'
+      # x-api-version は指定しない。'11' を送るとAPIが "Invalid pathname" を返すため、
+      # サーバー既定のバージョンに任せる（未指定で正常にアップロードできることを確認済み）
       req['x-content-type'] = 'application/json'
       req['x-add-random-suffix'] = '0'   # 固定URLで配信するためサフィックスなし
       req['x-allow-overwrite'] = '1'     # 毎回同じパスに上書き
