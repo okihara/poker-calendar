@@ -5,3 +5,4 @@ config.json
 test.log
 .bundle/
 vendor/
+.vercel_blob_token
