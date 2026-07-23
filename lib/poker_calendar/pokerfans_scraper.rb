@@ -22,6 +22,11 @@ module PokerCalendar
     # デフォルトの各フェッチ間隔（秒）。呼び出し側で上書き可能。
     DEFAULT_FETCH_INTERVAL = 2
 
+    # 例外店舗。ここに含まれる店舗は対象キーワードによる絞り込みを免除し、
+    # リング以外のイベントはすべて取り込む。店名の部分一致で判定する。
+    # 今後、店舗が増える可能性があるため配列で管理する。
+    EXCEPTION_VENUES = ['中野TRIGGER'].freeze
+
     def initialize(data_dir, date, fetch_interval: DEFAULT_FETCH_INTERVAL)
       @data_dir = data_dir
       @date = date
@@ -107,7 +112,9 @@ module PokerCalendar
 
       # 対象キーワードを含まないタイトルはスキップ。
       # コイン系・サテ・現金・協賛に加え、保証トナメ(GTD)も取り込む。
-      unless title =~ /コイン|coin|サテ|現金|協賛|保証|トナメ|GTD/i
+      # ただし例外店舗（EXCEPTION_VENUES）はリング以外すべて取り込むため、
+      # キーワード絞り込みを免除する。
+      unless exception_venue?(event) || title =~ /コイン|coin|サテ|現金|協賛|保証|トナメ|GTD/i
         log "SKIP: No target keyword - #{title}"
         return
       end
@@ -142,6 +149,14 @@ module PokerCalendar
     def extract_venue(block)
       match = block.match(/fa-home[^>]*><\/span>\s*<span>(.*?)<\/span>/m)
       match ? CGI.unescapeHTML(match[1].strip) : ''
+    end
+
+    # イベントの店舗が例外店舗（EXCEPTION_VENUES）かどうかを店名の部分一致で判定する。
+    def exception_venue?(event)
+      venue = extract_venue(event[:html])
+      return false if venue.empty?
+
+      EXCEPTION_VENUES.any? { |name| venue.include?(name) }
     end
 
     # 一覧の日時表記は当日なら「今日(Tue) 21:00 (Deadline22:30)」、
