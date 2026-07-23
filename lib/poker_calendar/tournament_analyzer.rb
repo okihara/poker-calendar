@@ -23,6 +23,16 @@ module PokerCalendar
     READ_TIMEOUT = Integer(ENV.fetch('LLM_READ_TIMEOUT', '120'))
     MAX_RETRIES  = Integer(ENV.fetch('LLM_MAX_RETRIES', '2'))
 
+    # 生成パラメータ。temperature=0の貪欲デコードはqwen等で繰り返しループに陥り、
+    # JSONを閉じないまま延々生成して長時間ハングすることがある。わずかに温度を与え、
+    # repeat_penaltyで繰り返しを抑えると自然に停止する（実測で暴走が解消）。
+    # max_tokensは万一暴走した場合の安全打ち切り（read_timeout到達前に返す）。
+    # repeat_penaltyはLM Studio等の拡張パラメータ。OpenAI等に向ける場合は
+    # LLM_REPEAT_PENALTY=0 で送信を無効化できる。
+    TEMPERATURE    = Float(ENV.fetch('LLM_TEMPERATURE', '0.4'))
+    REPEAT_PENALTY = Float(ENV.fetch('LLM_REPEAT_PENALTY', '1.1'))
+    MAX_TOKENS     = Integer(ENV.fetch('LLM_MAX_TOKENS', '1200'))
+
     def initialize(api_key, data_dir)
       @api_key = api_key
       @data_dir = data_dir
@@ -96,8 +106,10 @@ module PokerCalendar
         model: MODEL,
         response_format: response_format,
         messages: [{ role: "user", content: year_instruction + PROMPT + cleaned_html }],
-        temperature: 0,
+        temperature: TEMPERATURE,
+        max_tokens: MAX_TOKENS,
       }
+      body[:repeat_penalty] = REPEAT_PENALTY if REPEAT_PENALTY > 0
 
       parsed = post_chat(body)
       message = parsed.dig("choices", 0, "message") || {}
