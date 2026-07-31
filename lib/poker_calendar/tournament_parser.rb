@@ -51,6 +51,13 @@ module PokerCalendar
       ['金沢', '金沢'],
     ].freeze
 
+    # 店名から確定できる店舗のエリア。ページに住所が無くAIがareaを誤判定する
+    # 店舗（例: 津田沼のTsudanuma Poker Houseが中野になる）を店名で上書きする。
+    # AIのarea・住所ベースのAREA_RULESより優先する。店名の部分一致で判定する。
+    VENUE_AREA_RULES = [
+      ['Tsudanuma', '地方'],
+    ].freeze
+
     def initialize(data_dir)
       @data_dir = data_dir
     end
@@ -235,6 +242,12 @@ module PokerCalendar
 
     # 住所→店名の順でエリア名を探し、見つかればAIのareaより優先する
     def normalize_area(data)
+      # 店名で確定できる店舗は住所・AIのareaより優先して上書きする。
+      shop_name = data["shop_name"].to_s
+      VENUE_AREA_RULES.each do |keyword, area|
+        return area if shop_name.include?(keyword)
+      end
+
       [data["address"], data["shop_name"]].each do |text|
         next if text.nil? || text.empty?
         # 「東京都」が「京都」に部分一致してしまうので先に除去
