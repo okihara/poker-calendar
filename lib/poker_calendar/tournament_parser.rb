@@ -95,7 +95,14 @@ module PokerCalendar
     end
 
     def load_tournament(res_file)
-      tournament_data = JSON.parse(File.read(res_file, encoding: 'UTF-8'))
+      # qwen等のローカルLLMが出力を暴走・途中打ち切りし不完全JSONを保存することがある。
+      # 1件の壊れたJSONで当日・翌日分の生成まで巻き添えにしないよう、skipして続行する。
+      begin
+        tournament_data = JSON.parse(File.read(res_file, encoding: 'UTF-8'))
+      rescue JSON::ParserError => e
+        log "Skip: #{File.basename(res_file)} (JSON parse error: #{e.message})"
+        return nil
+      end
       reason = invalid_reason(tournament_data)
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
