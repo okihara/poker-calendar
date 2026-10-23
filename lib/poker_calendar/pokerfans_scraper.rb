@@ -27,6 +27,10 @@ module PokerCalendar
     # 今後、店舗が増える可能性があるため配列で管理する。
     EXCEPTION_VENUES = ['中野TRIGGER'].freeze
 
+    # タイトルの「400k」「1,500K」等をこの値（k単位）以上なら保証額とみなす。
+    # 「目覚まし1K」「【1.5K】飲み放題」のような参加費表記を拾わないための下限。
+    GUARANTEE_MIN_K = 10
+
     def initialize(data_dir, date, fetch_interval: DEFAULT_FETCH_INTERVAL)
       @data_dir = data_dir
       @date = date
@@ -110,11 +114,19 @@ module PokerCalendar
         return
       end
 
+      # 東京都で絞り込んでもオンライン開催（SunVy Club等）が混ざるため除外する。
+      if online_venue?(event)
+        log "SKIP: Online event excluded - #{title}"
+        return
+      end
+
       # 対象キーワードを含まないタイトルはスキップ。
       # コイン系・サテ・現金・協賛に加え、保証トナメ(GTD)も取り込む。
+      # 「400k｜DEEP STACK」「1Million」のように保証の語を書かず金額だけ
+      # 載せる店舗も多いため、金額表記（guarantee_amount?）も対象にする。
       # ただし例外店舗（EXCEPTION_VENUES）はリング以外すべて取り込むため、
       # キーワード絞り込みを免除する。
-      unless exception_venue?(event) || title =~ /コイン|coin|サテ|現金|協賛|保証|トナメ|GTD/i
+      unless exception_venue?(event) || title =~ /コイン|coin|サテ|現金|協賛|保証|トナメ|GTD/i || guarantee_amount?(title)
         log "SKIP: No target keyword - #{title}"
         return
       end
@@ -157,6 +169,23 @@ module PokerCalendar
       return false if venue.empty?
 
       EXCEPTION_VENUES.any? { |name| venue.include?(name) }
+    end
+
+    # 店舗欄は「店名 (住所)」で、オンライン開催は「SunVy Club (SunVy Poker | Online )」
+    # のように住所部分が Online になる。
+    def online_venue?(event)
+      address = extract_venue(event[:html])[/\(([^()]*)\)\s*\z/, 1]
+      !!(address && address =~ /\bonline\b/i)
+    end
+
+    # タイトルに保証額らしき金額表記があるか。「400k」「1,500K」（GUARANTEE_MIN_K 以上）、
+    # 「15万」「１万マイル」、「1Million」「Million Dollar」を対象にする。
+    def guarantee_amount?(title)
+      text = title.tr('０-９', '0-9')
+      return true if text =~ /million/i
+
+      text.scan(/(\d[\d,]*(?:\.\d+)?)\s*[kK](?![a-zA-Z])/).any? { |(num)| num.delete(',').to_f >= GUARANTEE_MIN_K } ||
+        text.match?(/\d[\d,]*(?:\.\d+)?\s*万/)
     end
 
     # 一覧の日時表記は当日なら「今日(Tue) 21:00 (Deadline22:30)」、
