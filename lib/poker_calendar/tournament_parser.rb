@@ -133,11 +133,28 @@ module PokerCalendar
 
       %w[start_time late_registration_time].each do |field|
         value = data[field].to_s.strip
-        next unless value.match?(/\A\d{1,2}:\d{2}\z/)
+        normalized = value.match?(/\A\d{1,2}:\d{2}\z/) ? "#{date} #{value}" : value
+        normalized = roll_over_midnight(normalized)
+        next if normalized == value
 
-        data[field] = "#{date} #{value}"
+        data[field] = normalized
         log "Datetime normalized: #{File.basename(res_file)} (#{field}: #{value} -> #{data[field]})"
       end
+    end
+
+    # 深夜営業の店は締切を「27:00」のように24時以降で書くため、翌日の時刻に直す
+    # （2026/10/24 27:00 -> 2026/10/25 03:00）
+    def roll_over_midnight(value)
+      m = value.match(%r{\A(\d{4}/\d{1,2}/\d{1,2}) (\d{1,2}):(\d{2})\z})
+      return value unless m
+
+      hour = m[2].to_i
+      return value if hour < 24
+
+      day = Date.strptime(m[1], "%Y/%m/%d") + hour / 24
+      format("%s %02d:%s", day.strftime("%Y/%m/%d"), hour % 24, m[3])
+    rescue ArgumentError
+      value
     end
 
     # HTMLからの参加費取得率がこれを下回ったら、ページ構造の変更を疑って警告する
