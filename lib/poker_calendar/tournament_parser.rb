@@ -197,11 +197,52 @@ module PokerCalendar
     # 「店名（表記ゆれを正規化）+ 開始日時」が一致し、かつタイトルが十分似ている行は
     # 同一イベントとみなし、情報量（埋まっているフィールド数）が多い方を残す。
     def dedupe_tournaments(tournaments)
-      tournaments.group_by { |t| dedupe_key(t[:data]) }.flat_map do |key, group|
+      deduped = tournaments.group_by { |t| dedupe_key(t[:data]) }.flat_map do |key, group|
         next group if key.nil? || group.size == 1
 
         dedupe_group(group)
       end
+      dedupe_across_sources(deduped)
+    end
+
+    # サイト間で店名の表記が違う（KAMATA BACKDOOR / BACKDOOR 蒲田 等）と店名一致の判定を
+    # すり抜けるため、pokerguildとpokerfansの組に限り「エリア + 開始日時」が一致し
+    # タイトルが似ていれば同一イベントとみなす。店名の書き方は当てにならないので見ない。
+    # 同じサイトに同じイベントが二重に載ることはないため、同一サイト内の組はまとめない。
+    def dedupe_across_sources(tournaments)
+      tournaments.group_by { |t| area_dedupe_key(t[:data]) }.flat_map do |key, group|
+        next group if key.nil? || group.size == 1
+
+        remaining_pg = group.select { |t| source_of(t) == "pg" }
+        dropped = []
+        group.select { |t| source_of(t) == "pf" }.each do |pf|
+          pg = remaining_pg.select { |c| title_similarity(c[:data], pf[:data]) >= TITLE_SIMILARITY_THRESHOLD }
+                           .max_by { |c| title_similarity(c[:data], pf[:data]) }
+          next unless pg
+
+          remaining_pg.delete(pg)
+          best = [pg, pf].max_by { |t| completeness_score(t[:data]) }
+          dropped_one = best.equal?(pg) ? pf : pg
+          log "Duplicate dropped (area): #{File.basename(dropped_one[:res_file])} " \
+              "(#{dropped_one[:data]['shop_name']} #{dropped_one[:data]['start_time']}) " \
+              "-> kept #{File.basename(best[:res_file])} (#{best[:data]['shop_name']})"
+          dropped << dropped_one
+        end
+        group.reject { |t| dropped.any? { |d| d.equal?(t) } }
+      end
+    end
+
+    # エリア・開始日時が欠けている場合はnilを返し、サイト間の重複排除の対象外とする
+    def area_dedupe_key(data)
+      area = normalize_area(data).to_s.strip
+      start_time = data["start_time"].to_s.strip
+      return nil if area.empty? || start_time.empty?
+
+      [area, start_time]
+    end
+
+    def source_of(tournament)
+      File.basename(tournament[:res_file])[/\Ares-(pg|pf)-/, 1]
     end
 
     # 同じ店・同じ開始時刻でも別イベントのことがある（リーグ戦の同時開催など）ため、
@@ -250,6 +291,15 @@ module PokerCalendar
       return true if ta.empty? || tb.empty?
 
       bigram_similarity(ta, tb) >= TITLE_SIMILARITY_THRESHOLD
+    end
+
+    # サイト間の重複判定用。店名で絞っていないので、タイトル不明なら似ていない(0.0)とみなす
+    def title_similarity(a, b)
+      ta = normalize_title(a["title"])
+      tb = normalize_title(b["title"])
+      return 0.0 if ta.empty? || tb.empty?
+
+      bigram_similarity(ta, tb)
     end
 
     # 記号・空白を除去して文字種を揃える（「50,000保証」と「50000保証」を一致させる）
