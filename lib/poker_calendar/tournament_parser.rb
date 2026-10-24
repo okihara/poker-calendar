@@ -50,6 +50,28 @@ module PokerCalendar
       ['京都', '京都'],
       ['大阪', '大阪'],
       ['金沢', '金沢'],
+      ['小岩', '小岩'],
+      ['西日暮里', '西日暮里'],
+      ['錦糸町', '錦糸町'],
+      ['江東橋', '錦糸町'],
+      ['赤羽', '赤羽'],
+      ['芝大門', '浜松町'],
+      ['南大井', '大森'],
+      # pokerfansは店名がローマ字（KAMATA BACKDOOR等）で住所に地名が無いことがある。
+      # 大文字小文字を区別せず照合する。紛らわしいもの（ASAKUSABASHI）は先に置く。
+      ['ASAKUSABASHI', '浅草橋'],
+      ['KAMATA', '蒲田'],
+      ['SHIMOKITA', '下北沢'],
+      ['ROPPONGI', '六本木'],
+      ['ROPONGI', '六本木'],
+      ['GINZA', '銀座'],
+      ['AKASAKA', '赤坂'],
+      ['NAKAMEGURO', '渋谷'],
+      ['EBISU', '渋谷'],
+      ['SHIBUYA', '渋谷'],
+      ['SHINJUKU', '新宿'],
+      ['IKEBUKURO', '池袋'],
+      ['AKIHABARA', '秋葉原'],
     ].freeze
 
     # 店名から確定できる店舗のエリア。ページに住所が無くAIがareaを誤判定する
@@ -112,7 +134,7 @@ module PokerCalendar
         log "Skip: #{File.basename(res_file)} (JSON parse error: #{e.message})"
         return nil
       end
-      reason = invalid_reason(tournament_data)
+      reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
         return nil
@@ -205,9 +227,13 @@ module PokerCalendar
       dedupe_across_sources(deduped)
     end
 
+    # サイト間で開始時刻が数分ずれて載ることがある（17:55 と 18:00 等）ため、この差までは同じとみなす
+    CROSS_SOURCE_START_TOLERANCE = 10 * 60
+
     # サイト間で店名の表記が違う（KAMATA BACKDOOR / BACKDOOR 蒲田 等）と店名一致の判定を
-    # すり抜けるため、pokerguildとpokerfansの組に限り「エリア + 開始日時」が一致し
-    # タイトルが似ていれば同一イベントとみなす。店名の書き方は当てにならないので見ない。
+    # すり抜けるため、pokerguildとpokerfansの組に限り「エリア + 日付」が一致し、開始時刻の差が
+    # CROSS_SOURCE_START_TOLERANCE 以内でタイトルが似ていれば同一イベントとみなす。
+    # 店名の書き方は当てにならないので見ない。
     # 同じサイトに同じイベントが二重に載ることはないため、同一サイト内の組はまとめない。
     def dedupe_across_sources(tournaments)
       tournaments.group_by { |t| area_dedupe_key(t[:data]) }.flat_map do |key, group|
@@ -216,7 +242,8 @@ module PokerCalendar
         remaining_pg = group.select { |t| source_of(t) == "pg" }
         dropped = []
         group.select { |t| source_of(t) == "pf" }.each do |pf|
-          pg = remaining_pg.select { |c| title_similarity(c[:data], pf[:data]) >= TITLE_SIMILARITY_THRESHOLD }
+          pg = remaining_pg.select { |c| close_start_time?(c[:data], pf[:data]) }
+                           .select { |c| title_similarity(c[:data], pf[:data]) >= TITLE_SIMILARITY_THRESHOLD }
                            .max_by { |c| title_similarity(c[:data], pf[:data]) }
           next unless pg
 
@@ -235,10 +262,25 @@ module PokerCalendar
     # エリア・開始日時が欠けている場合はnilを返し、サイト間の重複排除の対象外とする
     def area_dedupe_key(data)
       area = normalize_area(data).to_s.strip
-      start_time = data["start_time"].to_s.strip
-      return nil if area.empty? || start_time.empty?
+      start_time = parse_start_time(data)
+      return nil if area.empty? || start_time.nil?
 
-      [area, start_time]
+      # dateはAIの出力で表記ゆれ（2026/10/9 等）があるため、開始日時の日付でまとめる
+      [area, start_time.strftime("%Y/%m/%d")]
+    end
+
+    def close_start_time?(a, b)
+      ta = parse_start_time(a)
+      tb = parse_start_time(b)
+      return false if ta.nil? || tb.nil?
+
+      (ta - tb).abs <= CROSS_SOURCE_START_TOLERANCE
+    end
+
+    def parse_start_time(data)
+      Time.strptime(data["start_time"].to_s.strip, "%Y/%m/%d %H:%M")
+    rescue ArgumentError
+      nil
     end
 
     def source_of(tournament)
@@ -335,6 +377,19 @@ module PokerCalendar
       nil
     end
 
+    # pokerfansのオンライン開催は店舗欄が「SunVy Club (Fans Poker | Online )」になる。
+    # スクレイパー（PokerfansScraper#online_venue?）でも除外しているが、除外を入れる前に
+    # 保存されたファイルは取り直されずに残るため、CSV生成時にも除外する。
+    def online_event?(res_file)
+      return false unless File.basename(res_file).start_with?("res-pf-")
+
+      info_file = make_info_file_path(res_file)
+      return false unless File.exist?(info_file)
+
+      venue = File.read(info_file, encoding: 'UTF-8')[/^店舗: (.*)$/, 1].to_s
+      venue[/\(([^()]*)\)\s*\z/, 1].to_s.match?(/\bonline\b/i)
+    end
+
     def write_tournament_data(csv, data, index, res_file)
       title = data["title"].to_s
       has_saidai = title.include?("最大")
@@ -374,8 +429,9 @@ module PokerCalendar
 
       [data["address"], data["shop_name"]].each do |text|
         next if text.nil? || text.empty?
-        # 「東京都」が「京都」に部分一致してしまうので先に除去
-        text = text.to_s.gsub("東京都", "")
+        # 「東京都」が「京都」に部分一致してしまうので先に除去。
+        # ローマ字の地名は大文字小文字を区別しないよう大文字に揃える
+        text = text.to_s.gsub("東京都", "").upcase
         AREA_RULES.each do |keyword, area|
           return area if text.include?(keyword)
         end
