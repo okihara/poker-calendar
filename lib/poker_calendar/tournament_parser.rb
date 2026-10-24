@@ -116,7 +116,26 @@ module PokerCalendar
         return nil
       end
 
+      normalize_datetime_fields(tournament_data, res_file)
+
       { data: tournament_data, res_file: res_file }
+    end
+
+    # ローカルLLMは開始時刻に日付を補完してくれたり(2026/09/07 17:45)くれなかったり(17:45)
+    # 出力が不安定。日付が欠けた「HH:MM」だけの値は当日の日付を補って
+    # downstream(fix_late_registration_time・カレンダー登録)が期待する
+    # "%Y/%m/%d %H:%M" 形式に揃える。
+    def normalize_datetime_fields(data, res_file)
+      date = data["date"].to_s.strip
+      return if date.empty?
+
+      %w[start_time late_registration_time].each do |field|
+        value = data[field].to_s.strip
+        next unless value.match?(/\A\d{1,2}:\d{2}\z/)
+
+        data[field] = "#{date} #{value}"
+        log "Datetime normalized: #{File.basename(res_file)} (#{field}: #{value} -> #{data[field]})"
+      end
     end
 
     # 同じイベントがpokerguildとpokerfansの両方に登録されていることがあるため、
