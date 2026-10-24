@@ -2,6 +2,7 @@ require 'json'
 require 'csv'
 require 'time'
 require_relative './loggable'
+require_relative './fee_extractor'
 
 module PokerCalendar
   class TournamentParser
@@ -69,6 +70,7 @@ module PokerCalendar
       log "Parsing #{res_files.size} response files for #{date_str}"
 
       tournaments = res_files.filter_map { |res_file| load_tournament(res_file) }
+      apply_html_fees(tournaments)
       tournaments = dedupe_tournaments(tournaments)
 
       CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
@@ -136,6 +138,42 @@ module PokerCalendar
         data[field] = "#{date} #{value}"
         log "Datetime normalized: #{File.basename(res_file)} (#{field}: #{value} -> #{data[field]})"
       end
+    end
+
+    # HTMLからの参加費取得率がこれを下回ったら、ページ構造の変更を疑って警告する
+    HTML_FEE_HIT_RATE_WARNING = 0.8
+
+    # AIは参加費とスタートスタック（◯点）を取り違えることがあるため、pokerguildは
+    # ページに明記された金額で上書きする。HTMLから取れなかった項目はAIの値のまま。
+    def apply_html_fees(tournaments)
+      targets = tournaments.select { |t| File.basename(t[:res_file]).start_with?("res-pg-") }
+      return if targets.empty?
+
+      hits = targets.count do |t|
+        info_file = make_info_file_path(t[:res_file])
+        next false unless File.exist?(info_file)
+
+        fees = FeeExtractor.extract(File.read(info_file, encoding: 'UTF-8'))
+        fees.each do |field, amount|
+          next if t[:data][field].to_i == amount
+          log "Fee corrected: #{File.basename(info_file)} #{field} " \
+              "(#{t[:data][field].inspect} -> #{amount})"
+          t[:data][field] = amount
+        end
+        fees.key?("entry_fee")
+      end
+
+      rate = hits.to_f / targets.size
+      log "Entry fee from HTML: #{hits}/#{targets.size} (#{(rate * 100).round}%)"
+      if rate < HTML_FEE_HIT_RATE_WARNING
+        log "WARNING: HTMLから参加費を取れた割合が低いです。pokerguildのページ構造が変わった可能性があります"
+      end
+    end
+
+    # res-pg-2025-01-01-tourney-12345.txt.json -> pg-2025-01-01-tourney-12345.txt
+    def make_info_file_path(res_file)
+      basename = File.basename(res_file).sub(/\Ares-/, "").sub(/\.json\z/, "")
+      File.join(File.dirname(res_file), basename)
     end
 
     # 同じイベントがpokerguildとpokerfansの両方に登録されていることがあるため、
