@@ -2,7 +2,7 @@ require 'json'
 require 'csv'
 require 'time'
 require_relative './loggable'
-require_relative './fee_extractor'
+require_relative './pokerguild_page_extractor'
 
 module PokerCalendar
   class TournamentParser
@@ -91,8 +91,10 @@ module PokerCalendar
       res_files = Dir.glob(File.join(@data_dir, "res-*-#{date_str}-*.json")).sort
       log "Parsing #{res_files.size} response files for #{date_str}"
 
+      @html_field_targets = 0
+      @html_field_hits = Hash.new(0)
       tournaments = res_files.filter_map { |res_file| load_tournament(res_file) }
-      apply_html_fees(tournaments)
+      log_html_field_hit_rates
       tournaments = dedupe_tournaments(tournaments)
 
       CSV.open(output_file, "w", encoding: 'UTF-8') do |csv|
@@ -134,6 +136,8 @@ module PokerCalendar
         log "Skip: #{File.basename(res_file)} (JSON parse error: #{e.message})"
         return nil
       end
+      # 除外判定・日時の補正より先に、ページに明記された値でAIの値を上書きしておく
+      apply_html_fields(tournament_data, res_file)
       reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
@@ -179,33 +183,40 @@ module PokerCalendar
       value
     end
 
-    # HTMLからの参加費取得率がこれを下回ったら、ページ構造の変更を疑って警告する
-    HTML_FEE_HIT_RATE_WARNING = 0.8
+    # HTMLからの取得率がこれを下回ったら、ページ構造の変更を疑って警告する
+    HTML_FIELD_HIT_RATE_WARNING = 0.8
+    # ほぼ全ページにある項目。取得率の監視対象にする（アドオンや大会主催の店名は無いページも多い）
+    HTML_MONITORED_FIELDS = %w[title shop_name date start_time late_registration_time entry_fee].freeze
 
-    # AIは参加費とスタートスタック（◯点）を取り違えることがあるため、pokerguildは
-    # ページに明記された金額で上書きする。HTMLから取れなかった項目はAIの値のまま。
-    def apply_html_fees(tournaments)
-      targets = tournaments.select { |t| File.basename(t[:res_file]).start_with?("res-pg-") }
-      return if targets.empty?
+    # AIは店名に本文中の会場名を拾う・参加費とスタートスタック（◯点）を取り違える等の誤りがあるため、
+    # pokerguildはページ上部の情報欄に明記された値で上書きする。HTMLから取れなかった項目はAIの値のまま。
+    def apply_html_fields(data, res_file)
+      return unless File.basename(res_file).start_with?("res-pg-")
 
-      hits = targets.count do |t|
-        info_file = make_info_file_path(t[:res_file])
-        next false unless File.exist?(info_file)
+      @html_field_targets += 1
+      info_file = make_info_file_path(res_file)
+      return unless File.exist?(info_file)
 
-        fees = FeeExtractor.extract(File.read(info_file, encoding: 'UTF-8'))
-        fees.each do |field, amount|
-          next if t[:data][field].to_i == amount
-          log "Fee corrected: #{File.basename(info_file)} #{field} " \
-              "(#{t[:data][field].inspect} -> #{amount})"
-          t[:data][field] = amount
-        end
-        fees.key?("entry_fee")
+      fields = PokerguildPageExtractor.extract(File.read(info_file, encoding: 'UTF-8'))
+      fields.each do |field, value|
+        @html_field_hits[field] += 1
+        next if data[field].to_s.strip == value.to_s
+
+        log "HTML corrected: #{File.basename(info_file)} #{field} (#{data[field].inspect} -> #{value.inspect})"
+        data[field] = value
       end
+    end
 
-      rate = hits.to_f / targets.size
-      log "Entry fee from HTML: #{hits}/#{targets.size} (#{(rate * 100).round}%)"
-      if rate < HTML_FEE_HIT_RATE_WARNING
-        log "WARNING: HTMLから参加費を取れた割合が低いです。pokerguildのページ構造が変わった可能性があります"
+    def log_html_field_hit_rates
+      return if @html_field_targets.zero?
+
+      rates = HTML_MONITORED_FIELDS.to_h { |field| [field, @html_field_hits[field].to_f / @html_field_targets] }
+      log "Fields from HTML (#{@html_field_targets} pages): " +
+          rates.map { |field, rate| "#{field} #{(rate * 100).round}%" }.join(", ")
+      low = rates.select { |_, rate| rate < HTML_FIELD_HIT_RATE_WARNING }.keys
+      unless low.empty?
+        log "WARNING: HTMLから取れた割合が低い項目があります（#{low.join(', ')}）。" \
+            "pokerguildのページ構造が変わった可能性があります"
       end
     end
 
