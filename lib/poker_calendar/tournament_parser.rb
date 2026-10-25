@@ -3,6 +3,7 @@ require 'csv'
 require 'time'
 require_relative './loggable'
 require_relative './pokerguild_page_extractor'
+require_relative './jopt_games_prize_extractor'
 
 module PokerCalendar
   class TournamentParser
@@ -138,6 +139,7 @@ module PokerCalendar
       end
       # 除外判定・日時の補正より先に、ページに明記された値でAIの値を上書きしておく
       apply_html_fields(tournament_data, res_file)
+      apply_jopt_games_prize(tournament_data, res_file)
       reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
@@ -205,6 +207,21 @@ module PokerCalendar
         log "HTML corrected: #{File.basename(info_file)} #{field} (#{data[field].inspect} -> #{value.inspect})"
         data[field] = value
       end
+    end
+
+    # JOPT Games Free Roll推薦枠の「250権利」は1権利=1000円で換算できるが、AIは
+    # 金額として拾わない（または権利数のまま250と入れる）ため、本文から換算した額の方が
+    # 大きければそれで上書きする。
+    def apply_jopt_games_prize(data, res_file)
+      info_file = make_info_file_path(res_file)
+      return unless File.exist?(info_file)
+
+      yen = JoptGamesPrizeExtractor.extract_yen(File.read(info_file, encoding: 'UTF-8'))
+      return if yen.zero? || format_money(data["total_prize"]).to_i >= yen
+
+      log "JOPT Games prize: #{File.basename(info_file)} total_prize (#{data['total_prize'].inspect} -> #{yen})"
+      data["total_prize"] = yen
+      data["prize_list"] = [yen] if format_prize_list(data["prize_list"]).to_i < yen
     end
 
     def log_html_field_hit_rates
