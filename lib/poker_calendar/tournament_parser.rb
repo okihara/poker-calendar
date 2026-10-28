@@ -139,6 +139,7 @@ module PokerCalendar
       end
       # 除外判定・日時の補正より先に、ページに明記された値でAIの値を上書きしておく
       apply_html_fields(tournament_data, res_file)
+      apply_prize_validation(tournament_data, res_file)
       apply_jopt_games_prize(tournament_data, res_file)
       reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
       if reason
@@ -207,6 +208,46 @@ module PokerCalendar
         log "HTML corrected: #{File.basename(info_file)} #{field} (#{data[field].inspect} -> #{value.inspect})"
         data[field] = value
       end
+    end
+
+    # ローカルLLMはページに無い賞金額を作ることがある（プロンプトの例の250000を写す等）ため、
+    # 本文に出てこない金額は捨てる。total_prizeは本文にあるか、残った賞金の合計と一致するときだけ残す。
+    def apply_prize_validation(data, res_file)
+      info_file = make_info_file_path(res_file)
+      return unless File.exist?(info_file)
+
+      amounts = page_amounts(File.read(info_file, encoding: 'UTF-8'))
+      name = File.basename(info_file)
+
+      prize_list = Array(data["prize_list"])
+      kept = prize_list.map { |v| format_money(v) }.select { |v| amounts.include?(v) }
+      if kept.size < prize_list.size
+        log "Prize not in page: #{name} prize_list (#{prize_list.inspect} -> #{kept.inspect})"
+        data["prize_list"] = kept
+      end
+
+      total = format_money(data["total_prize"])
+      if total && !amounts.include?(total) && total != kept.sum
+        log "Prize not in page: #{name} total_prize (#{data['total_prize'].inspect} -> #{kept.sum})"
+        data["total_prize"] = kept.sum
+      end
+
+      guaranteed = format_money(data["guaranteed_amount"])
+      if guaranteed && !amounts.include?(guaranteed)
+        log "Prize not in page: #{name} guaranteed_amount (#{data['guaranteed_amount'].inspect} -> 0)"
+        data["guaranteed_amount"] = 0
+      end
+    end
+
+    # 本文に書かれた金額の一覧。「10万」「5千」「600K」「1M」は円に直し、「3権利」はJOPT Gamesの換算額にする
+    def page_amounts(html)
+      text = Nokogiri::HTML::DocumentFragment.parse(html).text.unicode_normalize(:nfkc)
+      text.scan(/(\d[\d,]*(?:\.\d+)?)\s*(万|千|k|m)?\s*(権利)?/i).map do |num, unit, rights|
+        multiplier = { "万" => 10000, "千" => 1000, "k" => 1000, "m" => 1000000 }.fetch(unit.to_s.downcase, 1)
+        value = num.delete(",").to_f * multiplier
+        value *= JoptGamesPrizeExtractor::YEN_PER_RIGHT if rights
+        value.round
+      end.uniq
     end
 
     # JOPT Games Free Roll推薦枠の「250権利」は1権利=1000円で換算できるが、AIは
