@@ -139,6 +139,7 @@ module PokerCalendar
       end
       # 除外判定・日時の補正より先に、ページに明記された値でAIの値を上書きしておく
       apply_html_fields(tournament_data, res_file)
+      apply_pokerfans_fields(tournament_data, res_file)
       apply_prize_validation(tournament_data, res_file)
       apply_jopt_games_prize(tournament_data, res_file)
       reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
@@ -206,6 +207,31 @@ module PokerCalendar
         next if data[field].to_s.strip == value.to_s
 
         log "HTML corrected: #{File.basename(info_file)} #{field} (#{data[field].inspect} -> #{value.inspect})"
+        data[field] = value
+      end
+    end
+
+    # PokerfansScraper#build_event_section が保存時に書く行のラベルと、対応する項目
+    PF_INFO_LABELS = {
+      "開催日" => "date",
+      "開始時刻" => "start_time",
+      "レイトレジストレーション締切" => "late_registration_time",
+    }.freeze
+
+    # AIは日付を崩して返すことがある（2026/100/31、2026/10,31 等）ため、
+    # pokerfansは保存したtxtに書かれた日時で上書きする。txtに無い項目はAIの値のまま。
+    def apply_pokerfans_fields(data, res_file)
+      return unless File.basename(res_file).start_with?("res-pf-")
+
+      info_file = make_info_file_path(res_file)
+      return unless File.exist?(info_file)
+
+      text = File.read(info_file, encoding: 'UTF-8')
+      PF_INFO_LABELS.each do |label, field|
+        value = text[/^#{label}: (.+)$/, 1]
+        next if value.nil? || data[field].to_s.strip == value
+
+        log "Info corrected: #{File.basename(info_file)} #{field} (#{data[field].inspect} -> #{value.inspect})"
         data[field] = value
       end
     end
