@@ -83,8 +83,8 @@ def main
   # --csv-only: スクレイピング・AI解析を行わず、既存JSONからCSV生成とアップロードのみ実行
   csv_only = ARGV.include?('--csv-only')
 
-  # 実行前にtest.logを削除
-  File.delete('test.log') if File.exist?('test.log')
+  # 実行前にtest.logを空にする（cronの出力先なので、削除するとログが残らない）
+  File.truncate('test.log', 0) if File.exist?('test.log')
 
   today = Time.now
   yesterday = today - (24 * 60 * 60)  # 1日前
