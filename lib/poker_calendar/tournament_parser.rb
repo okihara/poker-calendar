@@ -242,11 +242,12 @@ module PokerCalendar
     # 本文に書かれた金額の一覧。「10万」「5千」「600K」「1M」は円に直し、「3権利」はJOPT Gamesの換算額にする
     def page_amounts(html)
       text = Nokogiri::HTML::DocumentFragment.parse(html).text.unicode_normalize(:nfkc)
-      text.scan(/(\d[\d,]*(?:\.\d+)?)\s*(万|千|k|m)?\s*(権利)?/i).map do |num, unit, rights|
+      text.scan(/(\d[\d,]*(?:\.\d+)?)\s*(万|千|k|m)?\s*(権利)?/i).filter_map do |num, unit, rights|
         multiplier = { "万" => 10000, "千" => 1000, "k" => 1000, "m" => 1000000 }.fetch(unit.to_s.downcase, 1)
         value = num.delete(",").to_f * multiplier
         value *= JoptGamesPrizeExtractor::YEN_PER_RIGHT if rights
-        value.round
+        # 表のセルが連結されて数百桁の数字列になるとInfinityになり、roundが例外を出す
+        value.round if value.finite?
       end.uniq
     end
 
