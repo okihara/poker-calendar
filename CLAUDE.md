@@ -57,4 +57,4 @@ This is a Ruby application that scrapes poker tournament information from pokerg
 
 - `data/` directory contains all scraped HTML files, AI responses, and generated CSV files
 - Files are organized by date and tournament ID
-- The application automatically deletes `test.log` on each run
+- The application truncates `test.log` at the start of each run, so it holds only the latest run's log
