@@ -1,4 +1,4 @@
-import { MULT_TIERS, SORT_TABS, countActive, sortTabId, type Filters } from "../lib/filters";
+import { AREAS, MULT_TIERS, SORT_TABS, countActive, sortTabId, type Filters } from "../lib/filters";
 import { fmtDateShort } from "../lib/time";
 import { Chip } from "./Chip";
 
@@ -8,11 +8,12 @@ type Props = {
   onChange: (patch: Partial<Filters>) => void;
   onOpenSheet: () => void;
   closingSoonCount: number;
+  areaCounts: Record<string, number>;
   resultCount: number;
 };
 
 // 画面上部に固定する日付タブ＋並べ替えタブ＋チップ行
-export function Toolbar({ now, filters: f, onChange, onOpenSheet, closingSoonCount, resultCount }: Props) {
+export function Toolbar({ now, filters: f, onChange, onOpenSheet, closingSoonCount, areaCounts, resultCount }: Props) {
   const tomorrow = new Date(now.getTime() + 24 * 3600_000);
   const active = countActive(f);
   const currentSort = sortTabId(f.sort);
@@ -20,7 +21,6 @@ export function Toolbar({ now, filters: f, onChange, onOpenSheet, closingSoonCou
   // 適用中の条件をチップで表示（× で解除）
   const applied: { label: string; clear: () => void }[] = [];
   if (f.search.trim()) applied.push({ label: `「${f.search.trim()}」`, clear: () => onChange({ search: "" }) });
-  if (f.area) applied.push({ label: f.area, clear: () => onChange({ area: null }) });
   if (f.mult) applied.push({ label: MULT_TIERS.find((m) => m.key === f.mult)!.label, clear: () => onChange({ mult: null }) });
   if (f.keyword) applied.push({ label: f.keyword, clear: () => onChange({ keyword: null }) });
   if (f.showExpired) applied.push({ label: "レイト終了も表示", clear: () => onChange({ showExpired: false }) });
@@ -73,6 +73,11 @@ export function Toolbar({ now, filters: f, onChange, onOpenSheet, closingSoonCou
           <Chip key={a.label} onClick={a.clear} colorClass="bg-slate-100 text-slate-800 ring-slate-200">
             {a.label}
             <span aria-label="解除" className="text-slate-400">×</span>
+          </Chip>
+        ))}
+        {AREAS.map((a) => (
+          <Chip key={a} active={f.area === a} onClick={() => onChange({ area: f.area === a ? null : a })}>
+            {a} <span className="font-normal opacity-70">{areaCounts[a]}</span>
           </Chip>
         ))}
       </div>

@@ -185,6 +185,7 @@ export default function App() {
         onChange={change}
         onOpenSheet={() => setSheetOpen(true)}
         closingSoonCount={counts.closingSoon}
+        areaCounts={counts.area}
         resultCount={rows.length}
       />
 
