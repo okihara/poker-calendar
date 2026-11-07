@@ -10,6 +10,8 @@ This is a Ruby application that scrapes poker tournament information from pokerg
 2. **TournamentParser**: Processes the scraped data and converts it to CSV format  
 3. **GoogleSpreadsheetUploader**: Uploads CSV data to Google Spreadsheets
 
+The frontend (Vite + React, deployed on Vercel) lives in `front/`. See `front/CLAUDE.md`.
+
 ## Core Commands
 
 - **Run the application**: `ruby bin/update_calendar.rb`
