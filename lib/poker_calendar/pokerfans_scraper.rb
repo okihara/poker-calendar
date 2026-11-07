@@ -154,7 +154,6 @@ module PokerCalendar
       lines << "レイトレジストレーション締切: #{deadline}" if deadline
       lines << "参加費: #{extract_fee(block)}"
       lines << "定員: #{extract_capacity(block)}"
-      lines << "プライズ: 一覧に記載なし（タイトルに保証額等の記載があればそれを使う）"
       lines.join("\n") + "\n"
     end
 
