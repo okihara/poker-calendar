@@ -142,6 +142,7 @@ module PokerCalendar
       apply_pokerfans_fields(tournament_data, res_file)
       apply_prize_validation(tournament_data, res_file)
       apply_jopt_games_prize(tournament_data, res_file)
+      apply_pokerfans_title_prize(tournament_data, res_file)
       reason = invalid_reason(tournament_data) || ("online event" if online_event?(res_file))
       if reason
         log "Skip: #{File.basename(res_file)} (#{reason})"
@@ -295,6 +296,28 @@ module PokerCalendar
       log "JOPT Games prize: #{File.basename(info_file)} total_prize (#{data['total_prize'].inspect} -> #{yen})"
       data["total_prize"] = yen
       data["prize_list"] = [yen] if format_prize_list(data["prize_list"]).to_i < yen
+    end
+
+    # pokerfansは一覧のタイトルしか取れない。JG Free推薦トナメのタイトルの「1,000K」等は
+    # 権利を円換算したプライズ総額だが、AIが拾わないことがあるので0のときはそれを使う。
+    # 「STACK180K」「4Kトナメ」のような賞金でない表記を拾わないよう、JG Free系のタイトルで
+    # 10K以上のときだけに限る。
+    def apply_pokerfans_title_prize(data, res_file)
+      return unless File.basename(res_file).start_with?("res-pf-")
+      return if format_money(data["total_prize"]).to_i > 0
+
+      info_file = make_info_file_path(res_file)
+      return unless File.exist?(info_file)
+
+      title = File.read(info_file, encoding: 'UTF-8')[/^タイトル: (.+)$/, 1].to_s.unicode_normalize(:nfkc)
+      return unless title.match?(JoptGamesPrizeExtractor::KEYWORD_PATTERN)
+
+      k = title.scan(/(\d[\d,]*(?:\.\d+)?)\s*k(?![a-z])/i).map { |(num)| num.delete(",").to_f }.max
+      return if k.nil? || k < 10
+
+      yen = (k * 1000).round
+      log "Pokerfans title prize: #{File.basename(info_file)} total_prize (#{data['total_prize'].inspect} -> #{yen})"
+      data["total_prize"] = yen
     end
 
     def log_html_field_hit_rates
