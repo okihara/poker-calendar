@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node/JS (将来の拡張用)
+node_modules/
+.npm/
+.pnpm-store/
+
+# ビルド/配布物
+.dist/
+dist/
+build/
+.cache/
+.tmp/
+
+# 環境変数
+.env
+.env.*
+*.local
+
+# エディタ/IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# OS / その他
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
