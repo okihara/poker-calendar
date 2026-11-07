@@ -516,7 +516,8 @@ module PokerCalendar
 
     def write_tournament_data(csv, data, index, res_file)
       title = data["title"].to_s
-      has_saidai = title.include?("最大")
+      # 「最大50%OFF」「早割最大¥8,000割引」のような割引表記は賞金ではないので判定から外す
+      has_saidai = title.gsub(/最大[¥￥\d,.]*(?:%|％|OFF|円?割)/i, "").include?("最大")
 
       late_time = fix_late_registration_time(data["start_time"], data["late_registration_time"])
       area = normalize_area(data)
