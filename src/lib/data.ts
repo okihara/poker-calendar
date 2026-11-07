@@ -125,7 +125,7 @@ function normalizeRow(row: RawRow): Tournament {
   const guaranteed = parseIntSafe(row.guaranteed_amount);
   // prize_list の合計 → total_prize → guaranteed_amount の順で、正の値を採用
   const fromList = parsePrizeListSum(row.prize_list || row.prize_text);
-  const prizeRaw = fromList ?? parseIntSafe(row.total_prize);
+  const prizeRaw = fromList || parseIntSafe(row.total_prize);
   const totalPrize = prizeRaw != null && prizeRaw > 0 ? prizeRaw : guaranteed;
 
   // 倍率 = 賞金総額 / (参加費 + アドオン)。サテライトは対象外、500以上は異常値として扱わない
