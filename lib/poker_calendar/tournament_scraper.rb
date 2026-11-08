@@ -1,6 +1,10 @@
 # encoding: utf-8
 
 require 'time'
+require 'cgi'
+require 'json'
+require 'securerandom'
+require 'uri'
 require_relative './loggable'
 
 module PokerCalendar
@@ -86,7 +90,7 @@ module PokerCalendar
       # 新しいサイト構造: POST リクエストで個別ページを取得
       html = `curl -L --compressed -s -X POST "#{BASE_URL}/tournament" -d "no=#{tourney_no}"`
       # トーナメント情報部分のみ抽出して保存
-      tournament_section = extract_tournament_section(html)
+      tournament_section = embed_ggpl_template(extract_tournament_section(html))
       File.write(file_path, tournament_section, encoding: 'UTF-8')
     end
 
@@ -94,6 +98,34 @@ module PokerCalendar
       html = html.force_encoding('UTF-8')
       match = html.match(/<div id="scn_tournament_page".*?<\/article>/m)
       match ? match[0] : html
+    end
+
+    # GoodGame Poker Live SHINJUKU 等は詳細欄が空で、ブラウザ上でタイトルをキーに
+    # Google Apps Script のページをiframeで読み込んでいる。その中身を詳細欄に埋め込んで保存する。
+    def embed_ggpl_template(section)
+      endpoint = section[/var templateEndpoint = '([^']+)'/, 1]
+      title = section[/<h1 class="panel_title">(.*?)<\/h1>/m, 1]
+      return section unless endpoint && title
+
+      body = fetch_ggpl_template(endpoint, CGI.unescapeHTML(title).strip)
+      return section unless body
+
+      section.sub(/(<div id="ggpl-template-host"[^>]*>)/) { "#{$1}#{body}" }
+    end
+
+    # channel は32桁の16進でないと空のページが返る
+    def fetch_ggpl_template(endpoint, title)
+      url = "#{endpoint}?#{URI.encode_www_form(title: title, channel: SecureRandom.hex(16))}"
+      html = IO.popen(["curl", "-L", "--compressed", "-s", url], &:read).force_encoding('UTF-8')
+      # HTML本体は goog.script.init("...") の引数（JSONをJS文字列にしたもの）の userHtml に入っている
+      arg = html[/goog\.script\.init\("((?:[^"\\]|\\.)*)"/, 1]
+      return nil unless arg
+
+      json = JSON.parse(%("#{arg.gsub(/\\x(\h{2})/) { "\\u00#{$1}" }}"))
+      JSON.parse(json)["userHtml"].to_s[/<body>(.*)<\/body>/m, 1]
+    rescue JSON::ParserError => e
+      log "Failed to parse GGPL template for #{title}: #{e.message}"
+      nil
     end
 
     def make_info_file_name(tourney_no)
