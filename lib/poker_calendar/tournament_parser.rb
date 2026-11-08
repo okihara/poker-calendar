@@ -286,16 +286,31 @@ module PokerCalendar
     # JOPT Games Free Roll推薦枠の「250権利」は1権利=1000円で換算できるが、AIは
     # 金額として拾わない（または権利数のまま250と入れる）ため、本文から換算した額の方が
     # 大きければそれで上書きする。
+    # 逆にAIが順位ごとの権利額を重複して並べ（[30000, 30000, 15000, ...]）総額が膨らむこともあるため、
+    # prize_listが本文の順位ごとの権利額だけでできているのに換算額を超えるときは、換算額で置き換える。
     def apply_jopt_games_prize(data, res_file)
       info_file = make_info_file_path(res_file)
       return unless File.exist?(info_file)
 
-      yen = JoptGamesPrizeExtractor.extract_yen(File.read(info_file, encoding: 'UTF-8'))
-      return if yen.zero? || format_money(data["total_prize"]).to_i >= yen
+      html = File.read(info_file, encoding: 'UTF-8')
+      yen = JoptGamesPrizeExtractor.extract_yen(html)
+      return if yen.zero?
 
-      log "JOPT Games prize: #{File.basename(info_file)} total_prize (#{data['total_prize'].inspect} -> #{yen})"
+      total = format_money(data["total_prize"]).to_i
+      if total < yen
+        log "JOPT Games prize: #{File.basename(info_file)} total_prize (#{data['total_prize'].inspect} -> #{yen})"
+        data["total_prize"] = yen
+        data["prize_list"] = [yen] if format_prize_list(data["prize_list"]).to_i < yen
+        return
+      end
+
+      ranked = JoptGamesPrizeExtractor.extract_ranked_yen(html)
+      prize_list = Array(data["prize_list"]).map { |v| format_money(v) }
+      return if total == yen || ranked.empty? || prize_list.empty? || !(prize_list - ranked).empty?
+
+      log "JOPT Games prize: #{File.basename(info_file)} prize_list (#{data['prize_list'].inspect} -> #{ranked.inspect})"
       data["total_prize"] = yen
-      data["prize_list"] = [yen] if format_prize_list(data["prize_list"]).to_i < yen
+      data["prize_list"] = ranked
     end
 
     # pokerfansは一覧のタイトルしか取れない。JG Free推薦トナメのタイトルの「1,000K」等は
