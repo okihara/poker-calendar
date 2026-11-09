@@ -267,10 +267,13 @@ module PokerCalendar
     end
 
     # 本文に書かれた金額の一覧。「10万」「5千」「600K」「1M」は円に直し、
-    # 「3権利」「参加権利 3枚」「JG Free権利推薦 100枚」はJOPT Gamesの換算額にする
+    # 「3権利」「参加権利 3枚」「JG Free権利推薦 100枚」はJOPT Gamesの換算額にする。
+    # 「15,000点」のようなスタック・ポイントは金額ではないので含めない
     def page_amounts(html)
       text = Nokogiri::HTML::DocumentFragment.parse(html).text.unicode_normalize(:nfkc)
-      amounts = text.scan(/(\d[\d,]*(?:\.\d+)?)\s*(万|千|k|m)?\s*(権利)?/i).filter_map do |num, unit, rights|
+      amounts = text.scan(/(\d[\d,]*(?:\.\d+)?)\s*(万|千|k|m)?\s*(権利)?\s*(点)?/i).filter_map do |num, unit, rights, points|
+        next if points
+
         multiplier = { "万" => 10000, "千" => 1000, "k" => 1000, "m" => 1000000 }.fetch(unit.to_s.downcase, 1)
         value = num.delete(",").to_f * multiplier
         value *= JoptGamesPrizeExtractor::YEN_PER_RIGHT if rights
