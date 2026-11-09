@@ -19,25 +19,40 @@ module PokerCalendar
     # JOPT Games / JG Free / JGFR / JOPTゲームズ 等の表記ゆれ
     KEYWORD_PATTERN = /JOPT\s*Games|JOPT\s*ゲームズ|\bJG\s*(?:Free|フリー|FR\b)|\bJGFR\b/i
     RIGHTS_PATTERN = /(\d[\d,]*)\s*権利/
+    LEADING_RIGHTS_PATTERN = /\A\d[\d,]*\s*権利/
     RANK_PATTERN = /\d+\s*位|優勝|\d+\s*(?:st|nd|rd|th)\b/i
 
     # 換算した円を返す。該当する記載が無ければ0。
     # 順位ごとに書かれていれば合計し、そうでなければ（タイトルと本文に同じ総数が
     # 重ねて書かれることがあるため）最大の権利数を総額とみなす。
+    def extract_yen(html)
+      ranked, others = extract_amounts(html)
+      ranked.empty? ? others.max.to_i : ranked.sum
+    end
+
+    # 順位ごとに書かれた換算額を書かれた順に返す。順位ごとの記載が無ければ空配列。
+    def extract_ranked_yen(html)
+      extract_amounts(html).first
+    end
+
     # 「1位」の見出し行の下に「活動支援」等を挟んで「JG Free 5権利」が続く書き方も多いため、
     # 順位の行が出た後の権利はすべて順位ごととして扱う。
-    def extract_yen(html)
+    # 「-JG Free権利-<br>30権利推薦」のように権利数が次の行に書かれることもあるため、
+    # JOPT Games を指す語の直後の行が権利数で始まるときも拾う。
+    def extract_amounts(html)
       ranked = []
       others = []
       in_block = false
       under_rank = false
+      after_keyword = false
 
       lines(html).each do |line|
         next if line.empty?
 
         keyword = line.match?(KEYWORD_PATTERN)
         rank = line.match?(RANK_PATTERN)
-        in_block = keyword || (in_block && rank)
+        in_block = keyword || (in_block && rank) || (after_keyword && line.match?(LEADING_RIGHTS_PATTERN))
+        after_keyword = keyword
         under_rank ||= rank
         next unless in_block
 
@@ -47,7 +62,7 @@ module PokerCalendar
         (under_rank ? ranked : others) << rights * yen_per_right(line)
       end
 
-      ranked.empty? ? others.max.to_i : ranked.sum
+      [ranked, others]
     end
 
     def yen_per_right(line)
